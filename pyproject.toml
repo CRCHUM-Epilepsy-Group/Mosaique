@@ -18,4 +18,8 @@ dependencies = [
     "pathos",
     "rich",
     "pyyaml",
+    "pytest>=9.0.2",
 ]
+
+[dependency-groups]
+dev = []
