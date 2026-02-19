@@ -19,15 +19,28 @@ def cwt_spectral_connectivity(
 ) -> dict[tuple[float, float], np.ndarray]:
     """Calculate spectral connectivity matrices for EEG data.
 
-    Args:
-        eeg: Array of shape (epochs, channels, times)
-        freqs: Frequency bands as [(low, high), ...] or (low, high)
-        method: Connectivity method ('pli' or 'corr')
-        wavelet: Wavelet to use for transform
-        sfreq: Recording sampling rate in Hz
+    Uses continuous wavelet transform (CWT) to estimate cross-spectral
+    density, then derives a connectivity measure per frequency band.
 
-    Returns:
-        Dict mapping frequency bands to connectivity matrices
+    Parameters
+    ----------
+    eeg : np.ndarray
+        Array of shape ``(epochs, channels, times)``.
+    freqs : list[tuple[float, float]] | tuple[float, float]
+        Frequency bands as ``[(low, high), ...]`` or a single ``(low, high)``.
+    method : str
+        Connectivity method: ``"pli"`` (phase lag index) or ``"corr"``
+        (Pearson correlation of wavelet magnitude).
+    wavelet : str
+        Wavelet name for CWT (default ``"cmor1.5-1.0"``).
+    sfreq : float
+        Sampling frequency in Hz (default 200).
+
+    Returns
+    -------
+    dict[tuple[float, float], np.ndarray]
+        Mapping from frequency band ``(low, high)`` to connectivity matrices
+        of shape ``(n_epochs, n_channels, n_channels)``.
     """
     freqs = [freqs] if isinstance(freqs, tuple) else freqs
 
@@ -83,15 +96,25 @@ def connectivity_from_coeff(
     method: str = "pli",
     **kwargs,
 ) -> dict[tuple[float, float], np.ndarray]:
-    """Calculate spectral connectivity matrices from wavelet coefficients.
+    """Calculate spectral connectivity from pre-computed wavelet coefficients.
 
-    Args:
-        coefficients: Dict mapping frequency bands to coefficient arrays of shape
-                     (epochs, channels, times)
-        method: Connectivity method ('pli' or 'corr')
+    This avoids recomputing the CWT when coefficients are already cached by
+    the extraction pipeline.
 
-    Returns:
-        Dict mapping frequency bands to connectivity matrices
+    Parameters
+    ----------
+    coefficients : WaveletCoefficients
+        Dict mapping frequency bands to complex coefficient arrays of shape
+        ``(epochs, channels, freqs, times)``.
+    method : str
+        Connectivity method: ``"pli"`` or ``"corr"`` (see
+        :func:`cwt_spectral_connectivity` for details).
+
+    Returns
+    -------
+    dict[tuple[float, float], np.ndarray]
+        Connectivity matrices of shape ``(n_epochs, n_channels, n_channels)``
+        per frequency band.
     """
     connectivities = {}
 
@@ -124,6 +147,21 @@ def connectivity_from_coeff(
 
 
 def connected_threshold(con_mat):
+    """Threshold a connectivity matrix using the minimum spanning tree.
+
+    Edges below the minimum weight in the maximum spanning tree are set
+    to zero, guaranteeing the resulting graph stays connected.
+
+    Parameters
+    ----------
+    con_mat : np.ndarray
+        Symmetric connectivity matrix of shape ``(n_channels, n_channels)``.
+
+    Returns
+    -------
+    np.ndarray
+        Thresholded matrix (same shape), with sub-threshold entries zeroed.
+    """
     G = nx.from_numpy_array(con_mat)
     st = nx.minimum_spanning_tree(G)
     edges = [w for _, _, w in st.edges(data="weight")]
@@ -135,11 +173,21 @@ def connected_threshold(con_mat):
 
 
 def threshold_2(con_matrix):
-    """con_matrix input should be 4D array containing connectivity matrices
-    input shape of n_bands,n_epochs, n_channels, n_channels
-    method should be either "binary" or "weighted" (string)
-    threshold should be a float between 0 and 1, default is "auto" which is computed over each epoch
-    return a thresholded connectivity matric of same shape as input
+    """Binary-threshold a connectivity matrix while keeping it connected.
+
+    Starts at threshold 0.4 and decreases by 0.01 until the resulting
+    binary graph is connected.
+
+    Parameters
+    ----------
+    con_matrix : np.ndarray
+        Symmetric connectivity matrix of shape ``(n_channels, n_channels)``.
+
+    Returns
+    -------
+    np.ndarray
+        Binary matrix (same shape), with 1 where the original value meets
+        the threshold and 0 otherwise.
     """
     n_channels, _ = con_matrix.shape
     thresholded_net = np.zeros((n_channels, n_channels))
@@ -159,32 +207,87 @@ def threshold_2(con_matrix):
     return thresholded_net
 
 
-def average_clustering(mat):
+def average_clustering(mat, **kwargs):
+    """Average clustering coefficient of the graph.
+
+    Parameters
+    ----------
+    mat : np.ndarray
+        Connectivity matrix ``(n_channels, n_channels)``.
+
+    Returns
+    -------
+    float
+    """
     G = nx.from_numpy_array(mat)
-    average_clustering = nx.average_clustering(G)
-    return average_clustering
+    return nx.average_clustering(G)
 
 
-def average_node_connectivity(mat):
+def average_node_connectivity(mat, **kwargs):
+    """Average node connectivity (expected number of node-independent paths).
+
+    Parameters
+    ----------
+    mat : np.ndarray
+        Connectivity matrix ``(n_channels, n_channels)``.
+
+    Returns
+    -------
+    float
+    """
     G = nx.from_numpy_array(mat)
-    average_node_connectivity = nx.average_node_connectivity(G)
-    return average_node_connectivity
+    return nx.average_node_connectivity(G)
 
 
-def average_degree(mat):
+def average_degree(mat, **kwargs):
+    """Average node degree of the graph.
+
+    Parameters
+    ----------
+    mat : np.ndarray
+        Connectivity matrix ``(n_channels, n_channels)``.
+
+    Returns
+    -------
+    float
+    """
     G = nx.from_numpy_array(mat)
     degree = nx.degree(G)
-    average_degree = np.average(degree)
-    return average_degree
+    return np.average(degree)
 
 
-def global_efficiency(mat):
+def global_efficiency(mat, **kwargs):
+    """Global efficiency of the graph.
+
+    Parameters
+    ----------
+    mat : np.ndarray
+        Connectivity matrix ``(n_channels, n_channels)``.
+
+    Returns
+    -------
+    float
+    """
     G = nx.from_numpy_array(mat)
-    global_efficiency = nx.global_efficiency(G)
-    return global_efficiency
+    return nx.global_efficiency(G)
 
 
-def average_shortest_path_length(mat):
+def average_shortest_path_length(mat, **kwargs):
+    """Average shortest path length of the graph.
+
+    Parameters
+    ----------
+    mat : np.ndarray
+        Connectivity matrix ``(n_channels, n_channels)``.
+
+    Returns
+    -------
+    float
+
+    Raises
+    ------
+    networkx.NetworkXError
+        If the graph is not connected.
+    """
     G = nx.from_numpy_array(mat)
-    average_shortest_path_length = nx.average_shortest_path_length(G)
-    return average_shortest_path_length
+    return nx.average_shortest_path_length(G)

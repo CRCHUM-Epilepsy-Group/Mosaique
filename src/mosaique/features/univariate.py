@@ -136,8 +136,21 @@ def rescaled_range(X):
 
 
 def approximate_entropy(U, m=3, r=0.2, **kwargs):
-    """
-    https://gist.github.com/DustinAlandzes/a835909ffd15b9927820d175a48dee41
+    """Compute approximate entropy (ApEn) of a 1-D signal.
+
+    Parameters
+    ----------
+    U : array
+        1-D input signal.
+    m : int
+        Embedding dimension (default 3).
+    r : float
+        Tolerance factor, multiplied by std(U) (default 0.2).
+
+    Returns
+    -------
+    float
+        Approximate entropy value.
     """
     N = U.shape[0]
     r *= np.std(U, axis=0)
@@ -157,6 +170,22 @@ def approximate_entropy(U, m=3, r=0.2, **kwargs):
 
 
 def sample_entropy(X, m=2, r=0.2, **kwargs):
+    """Compute sample entropy (SampEn) of a 1-D signal.
+
+    Parameters
+    ----------
+    X : array
+        1-D input signal.
+    m : int
+        Embedding dimension (default 2).
+    r : float
+        Tolerance factor, multiplied by std(X) (default 0.2).
+
+    Returns
+    -------
+    float
+        Sample entropy value.  Returns ``np.inf`` when no template matches.
+    """
     N = len(X)
     sigma = np.std(X)
     tolerance = sigma * r
@@ -211,6 +240,20 @@ def spectral_entropy(U, sfreq=200, normalize=True, **kwargs):
 
 
 def permutation_entropy(data, k=3, **kwargs):
+    """Compute permutation entropy of a 1-D signal.
+
+    Parameters
+    ----------
+    data : array
+        1-D input signal.
+    k : int
+        Embedding dimension for ordinal patterns (default 3).
+
+    Returns
+    -------
+    float
+        Permutation entropy in bits.
+    """
     _, perm_probabilities = ordinal_distribution(data, dx=k)
     permen = shannon_entropy(perm_probabilities)
 
@@ -218,8 +261,23 @@ def permutation_entropy(data, k=3, **kwargs):
 
 
 def fuzzy_entropy(X, m=2, r=0.2, n=2, **kwargs):
-    """
-    Adapted from https://github.com/MattWillFlood/EntropyHub.jl/blob/master/src/_FuzzEn.jl
+    """Compute fuzzy entropy (FuzzyEn) of a 1-D signal.
+
+    Parameters
+    ----------
+    X : array
+        1-D input signal.
+    m : int
+        Embedding dimension (default 2).
+    r : float
+        Tolerance factor, multiplied by std(X) (default 0.2).
+    n : int
+        Fuzzy function gradient exponent (default 2).
+
+    Returns
+    -------
+    float
+        Fuzzy entropy value.
     """
 
     def fuzzy_fun(dist, gradient, width):
@@ -253,8 +311,23 @@ def fuzzy_entropy(X, m=2, r=0.2, n=2, **kwargs):
 
 
 def corr_dim(X, embed_dim=2, rvals=None, **kwargs):
-    """
-    https://github.com/CSchoel/nolds/blob/2fd45ecd8d36382de455e6b662a6b6a6e6ed32e7/nolds/measures.py#L932
+    """Estimate the correlation dimension of a 1-D signal.
+
+    Parameters
+    ----------
+    X : array
+        1-D input signal.
+    embed_dim : int
+        Embedding dimension for delay embedding (default 2).
+    rvals : array-like or None
+        Radii at which to evaluate the correlation sum.  If ``None``,
+        a logarithmic range based on the standard deviation is used.
+
+    Returns
+    -------
+    float
+        Estimated correlation dimension.  Returns ``np.nan`` when the
+        signal is constant or the fit is degenerate.
     """
     if sum(X) == 0:
         return np.nan
@@ -294,13 +367,26 @@ def corr_dim(X, embed_dim=2, rvals=None, **kwargs):
 
 
 def line_length(X, **kwargs):
-    """
+    """Compute the line length of a 1-D signal.
+
+    Line length is the mean absolute first-order difference of the signal,
+    a proxy for signal complexity / high-frequency content.
+
+    Parameters
+    ----------
+    X : array
+        1-D input signal.
+
+    Returns
+    -------
+    float
+        Mean absolute difference.
+
     References
     ----------
     .. [1] Esteller, R. et al. (2001). Line length: an efficient feature for
-           seizure onset detection. In Engineering in Medicine and Biology
-           Society, 2001. Proceedings of the 23rd Annual International
-           Conference of the IEEE (Vol. 2, pp. 1707-1710). IEEE.
+           seizure onset detection. *Proc. 23rd Annual International
+           Conference of the IEEE EMBS*, Vol. 2, pp. 1707-1710.
     """
 
     diff = np.diff(X)
@@ -313,6 +399,20 @@ def line_length(X, **kwargs):
 
 
 def peak_alpha(X, sfreq=200, **kwargs):
+    """Find the peak frequency in the alpha band (8–13 Hz).
+
+    Parameters
+    ----------
+    X : array
+        1-D input signal.
+    sfreq : float
+        Sampling frequency in Hz (default 200).
+
+    Returns
+    -------
+    float
+        Peak alpha frequency in Hz.
+    """
     psd, freqs = psd_array_multitaper(X, sfreq, normalization="length")  # type: ignore
     alpha_band = np.where((freqs >= 8) & (freqs <= 13))[0]
     peak_alpha_ind = np.argmax(psd[alpha_band])
@@ -322,8 +422,22 @@ def peak_alpha(X, sfreq=200, **kwargs):
 
 
 def hurst_exp(X, min_window=10, max_window=None, **kwargs):
-    """
-    https://github.com/Mottl/hurst/blob/5ca5005485a679e6ce11a2769c948915ae27b2da/hurst/__init__.py#L22
+    """Estimate the Hurst exponent via rescaled range (R/S) analysis.
+
+    Parameters
+    ----------
+    X : array
+        1-D input signal.
+    min_window : int
+        Minimum window size for R/S calculation (default 10).
+    max_window : int or None
+        Maximum window size.  If ``None``, uses ``len(X) - 1``.
+
+    Returns
+    -------
+    float
+        Estimated Hurst exponent (H ≈ 0.5 for random walk, H > 0.5 for
+        persistent series, H < 0.5 for anti-persistent series).
     """
 
     # Get windows sizes in log scale

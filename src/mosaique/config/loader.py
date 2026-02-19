@@ -40,8 +40,23 @@ def parse_config(config_file):
 def load_feature_extraction_func(dotpath: str | None) -> Callable:
     """Load a function from a dotted module path.
 
-    Tries ``mosaique.features.<module>.<func>`` first, then falls back to
-    importing ``<module>`` directly.
+    Resolution order:
+
+    1. ``mosaique.features.<module>.<func>`` — looks inside the built-in
+       feature modules first.
+    2. ``<module>.<func>`` — falls back to an absolute import, allowing
+       external packages to provide custom functions.
+
+    Parameters
+    ----------
+    dotpath : str | None
+        Dotted path such as ``"univariate.sample_entropy"`` or
+        ``"my_package.my_module.my_func"``.  If ``None``, returns ``None``.
+
+    Returns
+    -------
+    Callable
+        The resolved function object.
     """
     if dotpath is None:
         return None
@@ -56,10 +71,36 @@ def load_feature_extraction_func(dotpath: str | None) -> Callable:
 def parse_featureextraction_config(config_file):
     """Parse a feature extraction YAML config file.
 
+    The YAML file must contain two top-level keys:
+
+    ``frameworks``
+        Pre-extraction transforms keyed by framework name.  Each entry is a
+        list of dicts with ``name``, ``function`` (dotted path or ``null``),
+        and ``params``.
+
+    ``features``
+        Feature functions keyed by the same framework names.  Each entry is
+        a list of dicts with ``name``, ``function`` (dotted path), and
+        ``params``.  Parameter values can be lists — they will be expanded
+        into a Cartesian grid at extraction time.
+
+    Parameters
+    ----------
+    config_file : str | Path
+        Path to the YAML configuration file.
+
     Returns
     -------
-    tuple[dict, dict]
-        ``(features, frameworks)`` dicts with ``PreGridParams`` values.
+    tuple[dict[str, list[PreGridParams]], dict[str, list[PreGridParams]]]
+        ``(features, frameworks)`` ready to pass to
+        :class:`~mosaique.extraction.extractor.FeatureExtractor`.
+
+    Example
+    -------
+    ::
+
+        features, frameworks = parse_featureextraction_config("config.yaml")
+        extractor = FeatureExtractor(features, frameworks)
     """
     conf = parse_config(config_file)
 

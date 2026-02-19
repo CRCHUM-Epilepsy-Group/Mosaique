@@ -10,6 +10,17 @@ from mosaique.utils.toolkit import parallelize_over_axis
 
 
 class SimpleTransform(PreExtractionTransform):
+    """Identity transform — passes raw EEG data to feature functions.
+
+    No signal decomposition is applied.  Feature functions receive the raw
+    ``(epochs, channels, times)`` array sliced along the last axis.
+
+    If the feature function returns a ``dict`` (e.g. :func:`band_power`
+    returning one value per frequency band), each key becomes a separate
+    row in the output DataFrame with a ``freqs`` label.  Otherwise a single
+    scalar per (epoch, channel) is expected.
+    """
+
     key = "freqs"
     events: list[str]
     ch_names: list[str]

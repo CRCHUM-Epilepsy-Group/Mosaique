@@ -11,6 +11,21 @@ from mosaique.utils.toolkit import calculate_over_pool
 
 
 class ConnectivityTransform(PreExtractionTransform):
+    """Spectral connectivity transform.
+
+    First filters the EEG into frequency bands using CWT (reusing cached
+    coefficients when available), then computes connectivity matrices
+    (e.g. PLI or correlation) between channels for each band.
+
+    Feature functions receive a connectivity matrix of shape
+    ``(n_epochs, n_channels, n_channels)`` per frequency band.  They should
+    return either a single scalar per epoch (graph-level metric) or a
+    1-D array of length ``n_channels`` (node-level metric).
+
+    The output DataFrame includes a ``freqs`` column identifying the
+    ``(low, high)`` frequency band.
+    """
+
     key = "freqs"
     events: list[str]
     ch_names: list[str]

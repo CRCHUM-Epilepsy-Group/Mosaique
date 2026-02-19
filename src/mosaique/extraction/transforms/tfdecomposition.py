@@ -11,7 +11,20 @@ from mosaique.utils.toolkit import parallelize_over_axis
 
 
 class TFDecompositionTransform(PreExtractionTransform):
-    """Pre-extraction transform with DWT or WPD"""
+    """Time-frequency decomposition transform (DWT, WPD, or CWT).
+
+    Decomposes the EEG signal into frequency bands using wavelet transforms
+    and then extracts features independently per band.  The transform
+    function (``dwt_eeg``, ``wpd_eeg``, or ``cwt_eeg``) is specified in the
+    YAML config and called with the parameters defined there.
+
+    When using CWT, coefficients are averaged across wavelet scales within
+    each band and optionally downsampled to mimic WPD resolution
+    (see :meth:`simplify_cwt_coeffs`).
+
+    The output DataFrame includes a ``freqs`` column identifying the
+    ``(low, high)`` frequency band for each row.
+    """
 
     key = "freqs"
     events: list[str]

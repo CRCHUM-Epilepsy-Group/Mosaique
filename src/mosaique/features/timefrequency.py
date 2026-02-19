@@ -1,10 +1,29 @@
+"""Wavelet-based time-frequency decomposition functions.
+
+Provides DWT, WPD, and CWT decomposition of EEG signals into frequency
+bands.  These functions are typically used as *transform functions* in
+the extraction pipeline (referenced in YAML configs under ``frameworks``).
+
+Types
+-----
+``FrequencyBand``
+    Alias for ``tuple[float, float]`` — a ``(low_hz, high_hz)`` pair.
+
+``WaveletCoefficients``
+    Alias for ``dict[FrequencyBand, np.ndarray]`` — wavelet coefficients
+    keyed by frequency band.
+"""
+
 from rich.console import Console
 from mosaique.utils.toolkit import calculate_over_pool
 import pywt
 import numpy as np
 
 FrequencyBand = tuple[float, float]
+"""A ``(low_hz, high_hz)`` frequency band specification."""
+
 WaveletCoefficients = dict[FrequencyBand, np.ndarray]
+"""Wavelet coefficients keyed by frequency band."""
 
 
 def get_wavelet_scales(
@@ -49,17 +68,31 @@ def wpd_eeg(
     sfreq: float = 200,
     **kwargs,
 ) -> tuple[WaveletCoefficients, np.ndarray]:
-    """Compute WPD on the last dimension
-    The coefficients are downsampled at each decomposition level, while the
-    reconstructed signal has the same shape as original signal.
+    """Wavelet Packet Decomposition (WPD) of EEG signals.
 
-    Args:
-        eeg: EEG with last dimension containing single-channel signal
-        max_level: max level of WPD
-        wavelet: name of wavelet
-    Returns:
-        tuple with dictionary of WPD coefficients and array of reconstructed signal
-            at each level
+    Decomposes the signal along the last axis into frequency sub-bands using
+    a full wavelet packet tree.  Coefficients are downsampled at each level;
+    the reconstructed signal retains the original length.
+
+    Parameters
+    ----------
+    eeg : np.ndarray
+        EEG array with the last dimension as time (e.g. ``(epochs, channels,
+        times)``).
+    wavelet : str
+        PyWavelets wavelet name (default ``"sym5"``).
+    max_level : int
+        Maximum decomposition level (default 6).
+    sfreq : float
+        Sampling frequency in Hz (default 200).
+
+    Returns
+    -------
+    tuple[WaveletCoefficients, np.ndarray]
+        ``(coefficients, reconstructed)`` where *coefficients* maps each
+        frequency band to its (downsampled) coefficient array, and
+        *reconstructed* has shape ``(..., n_bands, times)`` with the
+        band-reconstructed signals.
     """
 
     wp = pywt.WaveletPacket(eeg, wavelet, mode="smooth", maxlevel=max_level, axis=-1)
@@ -93,18 +126,27 @@ def dwt_eeg(
     sfreq: float = 200,
     **kwargs,
 ) -> tuple[WaveletCoefficients, np.ndarray]:
-    """Compute DWT on the last dimension.
+    """Discrete Wavelet Transform (DWT) of EEG signals.
 
-    The coefficients are downsampled at each decomposition level, while the
-    reconstructed signal has the same shape as original signal.
+    Decomposes the signal along the last axis into approximation and detail
+    coefficients at each level.  Coefficients are downsampled; the
+    reconstructed signal retains the original length.
 
-    Args:
-        eeg: EEG with last dimension containing single-channel signal
-        max_level: max level of DWT
-        wavelet: name of wavelet
-    Returns:
-        tuple with dictionary of DWT coefficients and array of reconstructed signal
-            at each level
+    Parameters
+    ----------
+    eeg : np.ndarray
+        EEG array with the last dimension as time.
+    wavelet : str
+        PyWavelets wavelet name (default ``"sym5"``).
+    max_level : int
+        Number of decomposition levels (default 5).
+    sfreq : float
+        Sampling frequency in Hz (default 200).
+
+    Returns
+    -------
+    tuple[WaveletCoefficients, np.ndarray]
+        ``(coefficients, reconstructed)`` — see :func:`wpd_eeg`.
     """
 
     dwt = pywt.wavedec(eeg, wavelet, mode="smooth", level=max_level, axis=-1)
@@ -138,7 +180,7 @@ def dwt_eeg(
 def cwt_eeg(
     eeg: np.ndarray,
     freqs: list[FrequencyBand] | FrequencyBand,
-    wavelet: str = "cmor1.5-1.0",  # Changed default to complex Morlet
+    wavelet: str = "cmor1.5-1.0",
     sfreq: float = 200,
     method: str = "fft",
     num_workers: int = 1,
@@ -149,16 +191,42 @@ def cwt_eeg(
     console=Console(),
     **kwargs,
 ) -> tuple[WaveletCoefficients, np.ndarray]:
-    """Filter EEG signal into specified frequency bands using CWT.
+    """Continuous Wavelet Transform (CWT) of EEG signals.
 
-    Args:
-        eeg: EEG with last dimension containing single-channel signal
-        freqs: Frequency bands as [(low, high), ...] or (low, high)
-        wavelet: name of wavelet
-        sfreq: sampling frequency in Hz
-        method: 'fft' or 'conv'
-    Returns:
-        tuple with dictionary of coefficients and array of reconstructed signals
+    Computes CWT for each epoch in parallel, then groups the resulting
+    wavelet scales into the requested frequency bands.
+
+    Parameters
+    ----------
+    eeg : np.ndarray
+        EEG array of shape ``(epochs, channels, times)``.
+    freqs : list[FrequencyBand] | FrequencyBand
+        Target frequency bands as ``[(low, high), ...]`` or ``(low, high)``.
+    wavelet : str
+        Complex wavelet name (default ``"cmor1.5-1.0"``).
+    sfreq : float
+        Sampling frequency in Hz (default 200).
+    method : str
+        ``"fft"`` (fast, default) or ``"conv"`` (direct convolution).
+    num_workers : int
+        Number of parallel processes for epoch-level computation.
+    skip_reconstr : bool
+        If ``True``, skip the band-reconstructed signal (saves memory).
+    skip_complex : bool
+        If ``True``, store magnitudes instead of complex coefficients.
+    debug : bool
+        Run in single-process mode when ``True``.
+    disable_progress : bool
+        Suppress the progress bar.
+    console : rich.console.Console
+        Console for progress output.
+
+    Returns
+    -------
+    tuple[WaveletCoefficients, np.ndarray]
+        ``(coefficients, reconstructed)`` where *coefficients* maps each
+        band to an array of shape ``(epochs, channels, n_scales, times)``
+        and *reconstructed* has shape ``(epochs, channels, n_bands, times)``.
     """
     freqs = [freqs] if isinstance(freqs, tuple) else freqs
 

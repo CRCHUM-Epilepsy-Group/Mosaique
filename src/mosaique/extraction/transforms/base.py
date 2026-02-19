@@ -19,14 +19,55 @@ T = TypeVar("T")
 
 
 class PreExtractionTransform(ABC, Generic[T]):
-    """Defines a pre-extraction transform.
+    """Abstract base class for pre-extraction transforms.
 
-    These transforms take as input an EEG in the form of a numpy array with
-    shape (channel, epoch, timepoints)
+    A pre-extraction transform sits between the raw MNE ``Epochs`` and the
+    scalar feature functions.  It converts the EEG into an intermediate
+    representation (e.g. wavelet coefficients, connectivity matrices) that
+    feature functions can then operate on.
+
+    Subclasses must implement:
+
+    * :meth:`transform` – convert ``mne.Epochs`` into a transformed
+      representation of type ``T``.
+    * :meth:`extract_feature` – apply a single feature function to the
+      transformed data and return a :class:`polars.DataFrame`.
+
+    They should also set the class attribute :attr:`key` to the column name
+    used to label sub-bands or decomposition levels in the output DataFrame
+    (e.g. ``"freqs"``).
+
+    Creating a custom transform
+    ---------------------------
+    1. Subclass ``PreExtractionTransform`` and implement ``transform`` and
+       ``extract_feature``.
+    2. Register the new class in
+       :data:`~mosaique.extraction.transforms.TRANSFORM_REGISTRY` so that
+       :class:`~mosaique.extraction.extractor.FeatureExtractor` can look it
+       up by name.
+
+    Example::
+
+        from mosaique.extraction.transforms.base import PreExtractionTransform
+        from mosaique.extraction.transforms import TRANSFORM_REGISTRY
+
+        class MyCustomTransform(PreExtractionTransform[np.ndarray]):
+            key = "custom_key"
+
+            def transform(self, eeg):
+                # Return the transformed representation
+                ...
+
+            def extract_feature(self, transformed_eeg, feature_function, **kw):
+                # Apply feature_function and return a polars DataFrame
+                ...
+
+        # Register so the YAML config can reference it by name
+        TRANSFORM_REGISTRY["my_custom"] = MyCustomTransform
     """
 
-    # For transforms that return a dict: meaning of the dict key (will be
-    # stored in the final feature dataframe)
+    # Column name used in the output DataFrame to label decomposition
+    # levels or frequency bands (e.g. "freqs").
     key: str
 
     def __init__(
@@ -36,9 +77,19 @@ class PreExtractionTransform(ABC, Generic[T]):
         debug=False,
         console=Console(),
     ) -> None:
-        """See the definition for TransformParams. These are parsed from a
-        YAML config file specifying the pre-extraction transform name, function,
-        and parameters"""
+        """Initialise the transform from parsed configuration.
+
+        Parameters
+        ----------
+        transform : TransformParams
+            Parsed transform configuration (name, function, parameters).
+        num_workers : int
+            Number of parallel workers.
+        debug : bool
+            If ``True``, run in single-process mode for easier debugging.
+        console : rich.console.Console
+            Console used for progress output.
+        """
         self._name = transform.name
         self._function = (
             transform.function
@@ -71,7 +122,20 @@ class PreExtractionTransform(ABC, Generic[T]):
 
     @abstractmethod
     def transform(self, eeg: Epochs) -> T:
-        """Apply pre-extraction transformation to EEG"""
+        """Convert MNE Epochs into the transformed representation.
+
+        Parameters
+        ----------
+        eeg : mne.Epochs
+            Epoched EEG data.
+
+        Returns
+        -------
+        T
+            Transformed data whose type depends on the concrete subclass
+            (e.g. ``dict[FrequencyBand, np.ndarray]`` for wavelet transforms,
+            ``np.ndarray`` for the identity transform).
+        """
 
     @abstractmethod
     def extract_feature(
@@ -80,4 +144,21 @@ class PreExtractionTransform(ABC, Generic[T]):
         feature_function: FeatureFunction,
         **feature_params,
     ) -> pl.DataFrame:
-        """Apply feature extraction function to transformed EEG"""
+        """Apply a feature function to the transformed EEG.
+
+        Parameters
+        ----------
+        transformed_eeg : T
+            Output of :meth:`transform`.
+        feature_function : FeatureFunction
+            Callable that computes a scalar (or dict of scalars) from a 1-D
+            signal or a connectivity matrix.
+        **feature_params
+            Extra keyword arguments forwarded to *feature_function*.
+
+        Returns
+        -------
+        polars.DataFrame
+            Long-format table with at least columns ``epoch``, ``channel``
+            (when applicable), and ``value``.
+        """

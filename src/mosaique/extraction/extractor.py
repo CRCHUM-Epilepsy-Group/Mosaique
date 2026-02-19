@@ -27,7 +27,50 @@ from mosaique.utils.eeg_helpers import get_region_side
 
 
 class FeatureExtractor:
-    """Define and execute feature extraction pipelines for EEG data"""
+    """Orchestrates feature extraction pipelines for MNE Epochs EEG data.
+
+    ``FeatureExtractor`` ties together *frameworks* (pre-extraction transforms
+    such as wavelet decompositions or connectivity matrices) with *features*
+    (scalar functions applied to each transformed signal). For every
+    combination of transform parameters and feature parameters the extractor
+    builds a parameter grid, runs the computation in parallel, and returns a
+    single :class:`polars.DataFrame` with one row per (epoch, channel, feature,
+    parameter-combination).
+
+    Parameters
+    ----------
+    features : Mapping[str, list[PreGridParams]]
+        Feature functions grouped by framework name.  Each key must match a
+        key in *frameworks*.  Values are lists of :class:`PreGridParams` –
+        one per feature function (with optional parameter grids).
+    frameworks : Mapping[str, list[PreGridParams]]
+        Pre-extraction transform definitions grouped by framework name.
+        The framework name must be a key in
+        :data:`~mosaique.extraction.transforms.TRANSFORM_REGISTRY`
+        (``"tf_decomposition"``, ``"simple"``, ``"connectivity"``, or any
+        custom transform you registered).
+    log_dir : str | Path | None
+        If set, one log file per EEG recording is written here.
+    num_workers : int
+        Number of parallel worker processes.  ``1`` forces single-process
+        (debug) mode.
+    debug : bool
+        When ``True``, disables multiprocessing for easier debugging.
+    console : rich.console.Console
+        Console instance used for progress bars.
+
+    Example
+    -------
+    ::
+
+        from mosaique import FeatureExtractor, parse_featureextraction_config
+
+        features, frameworks = parse_featureextraction_config("config.yaml")
+        extractor = FeatureExtractor(features, frameworks, num_workers=4)
+
+        # eeg is an mne.Epochs object
+        df = extractor.extract_feature(eeg, eeg_id="subject_01")
+    """
 
     def __init__(
         self,
@@ -195,7 +238,26 @@ class FeatureExtractor:
         return feature_df
 
     def extract_feature(self, eeg: Epochs, eeg_id: str) -> pl.DataFrame:
-        """Extract all features from one EEG"""
+        """Extract all features from one EEG recording.
+
+        Iterates over every framework / transform-parameter / feature-parameter
+        combination, applies the pre-extraction transform, extracts features,
+        and concatenates the results into a single DataFrame.
+
+        Parameters
+        ----------
+        eeg : mne.Epochs
+            Epoched EEG data.
+        eeg_id : str
+            Identifier for the recording (used in logging).
+
+        Returns
+        -------
+        polars.DataFrame
+            Long-format table with columns ``epoch``, ``timestamp``,
+            ``channel``, ``value``, ``feature``, ``region_side``, ``params``,
+            plus any transform / feature parameter columns.
+        """
 
         self._eeg = eeg
         self._cached_coeffs = {}
