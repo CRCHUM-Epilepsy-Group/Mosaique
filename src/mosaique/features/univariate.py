@@ -231,7 +231,10 @@ def spectral_entropy(U, sfreq=200, normalize=True, **kwargs):
     """
     # Compute and normalize power spectrum
     _, psd = periodogram(U, sfreq, nfft=None, axis=-1)
-    psd_norm = psd / psd.sum()
+    total = psd.sum()
+    if total == 0:
+        return 0.0
+    psd_norm = psd / total
     with np.errstate(divide="ignore", invalid="ignore"):
         se = -(psd_norm * np.log2(psd_norm)).sum()
     if normalize:
@@ -286,6 +289,8 @@ def fuzzy_entropy(X, m=2, r=0.2, n=2, **kwargs):
 
     N = len(X)
     sigma = np.std(X)
+    if sigma == 0:
+        return 0.0
     tolerance = sigma * r
 
     # Create embedding vectors
@@ -329,13 +334,13 @@ def corr_dim(X, embed_dim=2, rvals=None, **kwargs):
         Estimated correlation dimension.  Returns ``np.nan`` when the
         signal is constant or the fit is degenerate.
     """
-    if sum(X) == 0:
-        return np.nan
-
     N = len(X)
+    sd = np.std(X, ddof=1)
+
+    if sd == 0:
+        return 0.0
 
     if rvals is None:
-        sd = np.std(X, ddof=1)
         rvals = logarithmic_r(0.1 * sd, 0.5 * sd, 1.03)
 
     delay_embed = np.zeros((N, embed_dim))
@@ -459,7 +464,18 @@ def hurst_exp(X, min_window=10, max_window=None, **kwargs):
             _ = rescaled_range(X[start : start + w])
             if _ != 0:
                 rs.append(_)
-        RS.append(np.mean(rs))
+        RS.append(np.mean(rs) if rs else 0.0)
+
+    RS = np.array(RS)
+    window_sizes = np.array(window_sizes)
+
+    # Need at least one non-zero RS to fit a line in log-log space
+    nonzero = RS > 0
+    if nonzero.sum() < 2:
+        return 0.0
+
+    RS = RS[nonzero]
+    window_sizes = window_sizes[nonzero]
 
     A = np.vstack([np.log10(window_sizes), np.ones(len(RS))]).T
     H, c = np.linalg.lstsq(A, np.log10(RS), rcond=None)[0]
