@@ -1,0 +1,95 @@
+features:
+  simple:
+    - name: line_length
+      function: univariate.line_length
+      params:
+    - name: band_power
+      function: univariate.band_power
+      params:
+        freqs:
+          - - !!python/tuple [1, 4]
+            - !!python/tuple [4, 8]
+            - !!python/tuple [8, 13]
+            - !!python/tuple [13, 30]
+            - !!python/tuple [30, 50]
+    - name: peak_alpha
+      function: univariate.peak_alpha
+      params:
+    - name: spectral_entropy
+      function: univariate.spectral_entropy
+      params:
+    - name: permutation_entropy
+      function: univariate.permutation_entropy
+      params:
+        k: [3]
+    - name: hurst_exp
+      function: univariate.hurst_exp
+      params:
+
+  tf_decomposition:
+    - name: sample_entropy
+      function: univariate.sample_entropy
+      params:
+        m: [2]
+        r: [0.2]
+    - name: approximate_entropy
+      function: univariate.approximate_entropy
+      params:
+        m: [3]
+        r: [0.2]
+    - name: fuzzy_entropy
+      function: univariate.fuzzy_entropy
+      params:
+        m: [2]
+        r: [0.2]
+    - name: line_length
+      function: univariate.line_length
+      params:
+    - name: corr_dim
+      function: univariate.corr_dim
+      params:
+        embed_dim: [2]
+
+  connectivity:
+    - name: average_clustering
+      function: connectivity.average_clustering
+      params:
+    - name: average_degree
+      function: connectivity.average_degree
+      params:
+    - name: global_efficiency
+      function: connectivity.global_efficiency
+      params:
+    - name: average_shortest_path_length
+      function: connectivity.average_shortest_path_length
+      params:
+
+frameworks:
+  simple:
+    - name: simple
+      function: null
+      params: null
+
+  tf_decomposition:
+    - name: cwt
+      function: timefrequency.cwt_eeg
+      params:
+        freqs:
+          - - !!python/tuple [4, 8]
+            - !!python/tuple [8, 13]
+            - !!python/tuple [13, 30]
+            - !!python/tuple [30, 50]
+        skip_reconstr: [True]
+        skip_complex: [True]
+
+  connectivity:
+    - name: pli
+      function: connectivity.connectivity_from_coeff
+      params:
+        freqs:
+          - - !!python/tuple [4, 8]
+            - !!python/tuple [8, 13]
+            - !!python/tuple [13, 30]
+            - !!python/tuple [30, 50]
+        method: pli
+        wavelet: cmor1.5-1.0
