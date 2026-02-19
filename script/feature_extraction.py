@@ -25,9 +25,10 @@ OUTPUT_DIR = SCRIPT_DIR / "output"
 
 def load_and_epoch_edf(
     edf_path: Path,
-    epoch_duration: float = 2.0,
+    epoch_duration: float = 5.0,
     l_freq: float = 1.0,
     h_freq: float = 50.0,
+    tmax: float = 120.0,
 ) -> mne.Epochs:
     """Load an EDF file and segment it into fixed-length epochs.
 
@@ -41,6 +42,8 @@ def load_and_epoch_edf(
         Lower bandpass frequency in Hz.
     h_freq : float
         Upper bandpass frequency in Hz.
+    tmax : float
+        Only keep the first ``tmax`` seconds of the recording.
 
     Returns
     -------
@@ -48,6 +51,7 @@ def load_and_epoch_edf(
         Epoched EEG data.
     """
     raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
+    raw.crop(tmax=min(tmax, raw.times[-1]))
     raw.filter(l_freq, h_freq, verbose=False)
 
     # Create fixed-length epochs
@@ -66,7 +70,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 2. Discover EDF files
     # ------------------------------------------------------------------
-    edf_files = sorted(DATA_DIR.glob("*.edf"))
+    edf_files = sorted(DATA_DIR.rglob("*.edf"))
     if not edf_files:
         print(f"No EDF files found in {DATA_DIR}")
         return
@@ -82,13 +86,15 @@ def main() -> None:
         print(f"Processing: {edf_path.name}")
 
         epochs = load_and_epoch_edf(edf_path)
-        print(f"  {len(epochs)} epochs, {len(epochs.ch_names)} channels, "
-              f"sfreq={epochs.info['sfreq']} Hz")
+        print(
+            f"  {len(epochs)} epochs, {len(epochs.ch_names)} channels, "
+            f"sfreq={epochs.info['sfreq']} Hz"
+        )
 
         extractor = FeatureExtractor(
             features,
             frameworks,
-            num_workers=1,
+            num_workers=4,
         )
         df = extractor.extract_feature(epochs, eeg_id=edf_path.stem)
         df = df.with_columns(file=pl.lit(edf_path.name))
