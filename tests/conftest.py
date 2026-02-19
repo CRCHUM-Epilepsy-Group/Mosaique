@@ -51,6 +51,65 @@ def signal_2d(rng):
 
 
 @pytest.fixture
+def all_nan_signal():
+    """Signal of all NaN values."""
+    return np.full(500, np.nan)
+
+
+@pytest.fixture
+def all_inf_signal():
+    """Signal of all inf values."""
+    return np.full(500, np.inf)
+
+
+@pytest.fixture
+def large_value_signal(rng):
+    """Signal with very large values (~1e15), simulating unscaled EEG."""
+    return rng.standard_normal(500) * 1e15
+
+
+@pytest.fixture
+def empty_signal():
+    """Empty signal — zero samples."""
+    return np.array([])
+
+
+@pytest.fixture
+def single_sample_signal():
+    """Single-sample signal."""
+    return np.array([1.0])
+
+
+@pytest.fixture
+def list_signal(random_signal):
+    """Python list version of random_signal (users passing lists)."""
+    return random_signal.tolist()
+
+
+@pytest.fixture
+def connectivity_matrix():
+    """Valid 3x3 symmetric connectivity matrix with values in [0, 1]."""
+    mat = np.array([
+        [0.0, 0.8, 0.3],
+        [0.8, 0.0, 0.5],
+        [0.3, 0.5, 0.0],
+    ])
+    return mat
+
+
+@pytest.fixture
+def zero_connectivity_matrix():
+    """All-zeros 3x3 connectivity matrix."""
+    return np.zeros((3, 3))
+
+
+@pytest.fixture
+def identity_connectivity_matrix():
+    """3x3 identity connectivity matrix."""
+    return np.eye(3)
+
+
+@pytest.fixture
 def synthetic_epochs():
     """Minimal MNE Epochs object for integration tests."""
     sfreq = 200
