@@ -1,7 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "mosaique"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "numpy",
+    "polars",
+    "PyWavelets",
+    "mne",
+    "scipy",
+    "networkx",
+    "pathos",
+    "rich",
+    "pyyaml",
+]

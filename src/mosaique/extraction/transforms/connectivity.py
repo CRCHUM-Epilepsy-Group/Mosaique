@@ -1,0 +1,106 @@
+"""Connectivity pre-extraction transform."""
+
+import numpy as np
+import polars as pl
+from mne import Epochs
+
+from mosaique.extraction.transforms.base import PreExtractionTransform
+from mosaique.features.timefrequency import FrequencyBand, cwt_eeg
+from mosaique.utils.eeg_helpers import get_event_list
+from mosaique.utils.toolkit import calculate_over_pool
+
+
+class ConnectivityTransform(PreExtractionTransform):
+    key = "freqs"
+    events: list[str]
+    ch_names: list[str]
+
+    def transform(self, eeg: Epochs) -> dict[FrequencyBand, np.ndarray]:
+        eeg_data = eeg.get_data()
+        self.sfreq = eeg.info["sfreq"]
+
+        # Filter data
+        try:
+            if all(f in self._cached_coeffs for f in self._params["freqs"]):
+                coeffs = self._cached_coeffs
+            else:
+                coeffs = cwt_eeg(eeg_data, **self._params)
+        except KeyError:
+            coeffs = cwt_eeg(eeg_data, **self._params)
+
+        self._cached_coeffs = coeffs
+
+        con_matrices = self._function(
+            coeffs, num_workers=self.num_workers, debug=self.debug, **self._params
+        )
+        self.events = get_event_list(eeg)
+        self.ch_names = eeg.ch_names
+        self.times = self._get_times(eeg)
+        return con_matrices
+
+    def extract_feature(
+        self,
+        transformed_eeg: dict[FrequencyBand, np.ndarray],
+        feature_function,
+        **feature_params,
+    ) -> pl.DataFrame:
+        """Extract features for transforms that return a dictionary"""
+
+        features_at_each_level = []
+
+        # Each key is a level, each value is an eeg as a numpy array
+        for level, eeg in transformed_eeg.items():
+            features = self._extract_for_single_level(
+                eeg, feature_function, **feature_params
+            )
+            features = features.with_columns(
+                pl.lit(str((level[0], level[1]))).alias(self.key)
+            )
+            features_at_each_level.append(features)
+
+        df = pl.concat(features_at_each_level)
+        return df
+
+    def _extract_for_single_level(
+        self, con_mat, feature_function, **feature_params
+    ) -> pl.DataFrame:
+        def process_con_mat(con_mat):
+            return feature_function(con_mat, **feature_params)
+
+        con_mat_list = [con_mat[i] for i in range(con_mat.shape[0])]
+        values = np.array(
+            calculate_over_pool(
+                process_con_mat,
+                con_mat_list,
+                num_workers=self.num_workers,
+                debug=self.debug,
+                chunksize=8,
+                disable_progress=True,
+                **feature_params,
+            )
+        )
+        match values.ndim:
+            case 1:
+                # Only one value per con_mat
+                df = pl.DataFrame(
+                    {
+                        "epoch": self.events,
+                        "timestamp": self.times,
+                        "value": values.tolist(),
+                    }
+                )
+            case 2:
+                # One value per channel
+                df = pl.DataFrame(
+                    {
+                        "epoch": np.repeat(self.events, len(self.ch_names)),
+                        "timestamp": np.repeat(self.times, len(self.ch_names)),
+                        "channel": np.tile(self.ch_names, len(self.events)),
+                        "value": values.flatten().tolist(),
+                    }
+                )
+            case _:
+                raise ValueError(
+                    f"Features from connectivity matrix has an unrecognized shape of {values.shape}"
+                )
+        return df
