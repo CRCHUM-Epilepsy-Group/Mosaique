@@ -158,7 +158,7 @@ def connectivity_from_coeff(
     return connectivities
 
 
-def connected_threshold(con_mat):
+def connected_threshold(mat):
     """Threshold a connectivity matrix using the minimum spanning tree.
 
     Edges below the minimum weight in the maximum spanning tree are set
@@ -166,7 +166,7 @@ def connected_threshold(con_mat):
 
     Parameters
     ----------
-    con_mat : np.ndarray
+    mat : np.ndarray
         Symmetric connectivity matrix of shape ``(n_channels, n_channels)``.
 
     Returns
@@ -174,17 +174,17 @@ def connected_threshold(con_mat):
     np.ndarray
         Thresholded matrix (same shape), with sub-threshold entries zeroed.
     """
-    G = nx.from_numpy_array(con_mat)
+    G = nx.from_numpy_array(mat)
     st = nx.minimum_spanning_tree(G)
     edges = [w for _, _, w in st.edges(data="weight")]
     threshold = min(edges)
 
-    thresholded_mat = np.where(con_mat >= threshold, con_mat, 0)
+    thresholded_mat = np.where(mat >= threshold, mat, 0)
 
     return thresholded_mat
 
 
-def threshold_2(con_matrix):
+def binary_threshold(mat):
     """Binary-threshold a connectivity matrix while keeping it connected.
 
     Starts at threshold 0.4 and decreases by 0.01 until the resulting
@@ -192,7 +192,7 @@ def threshold_2(con_matrix):
 
     Parameters
     ----------
-    con_matrix : np.ndarray
+    mat : np.ndarray
         Symmetric connectivity matrix of shape ``(n_channels, n_channels)``.
 
     Returns
@@ -201,18 +201,18 @@ def threshold_2(con_matrix):
         Binary matrix (same shape), with 1 where the original value meets
         the threshold and 0 otherwise.
     """
-    n_channels, _ = con_matrix.shape
+    n_channels, _ = mat.shape
     thresholded_net = np.zeros((n_channels, n_channels))
 
     # take the highest threshold without getting deconnected network for each 19x19 matrix
     threshold = 0.4
-    thresholded_net = np.where(con_matrix >= threshold, 1, 0)
+    thresholded_net = np.where(mat >= threshold, 1, 0)
     Graph = nx.from_numpy_array(thresholded_net)
     verify_connected = nx.is_connected(Graph)
     while verify_connected == False:
         # when thresholded_net is disconnected, decrease threshold until connected
         threshold = threshold - 0.01
-        thresholded_net = np.where(con_matrix >= threshold, 1, 0)
+        thresholded_net = np.where(mat >= threshold, 1, 0)
         Graph = nx.from_numpy_array(thresholded_net)
         verify_connected = nx.is_connected(Graph)
 

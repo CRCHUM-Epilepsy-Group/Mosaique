@@ -65,8 +65,8 @@ def logarithmic_r(min_n, max_n, factor):
     return np.array([min_n * (factor**i) for i in range(max_i + 1)])
 
 
-def shannon_entropy(U, **kwargs):
-    probabilities = [n_x / len(U) for x, n_x in collections.Counter(U).items()]
+def shannon_entropy(x, **kwargs):
+    probabilities = [n_x / len(x) for _, n_x in collections.Counter(x).items()]
     e_x = [-p_x * math.log(p_x, 2) for p_x in probabilities]
     entropy = sum(e_x)
     return entropy
@@ -130,12 +130,12 @@ def ordinal_distribution(
     return symbols, probabilities
 
 
-def rescaled_range(X):
-    mean = np.mean(X)
-    deviations = X - mean
+def rescaled_range(x):
+    mean = np.mean(x)
+    deviations = x - mean
     Z = np.cumsum(deviations)
     R = max(Z) - min(Z)
-    S = np.std(X, ddof=1)
+    S = np.std(x, ddof=1)
 
     if R == 0 or S == 0:
         return 0
@@ -151,32 +151,32 @@ def rescaled_range(X):
 # Entropies
 
 
-def approximate_entropy(U, m=3, r=0.2, **kwargs):
+def approximate_entropy(x, m=3, r=0.2, **kwargs):
     """Compute approximate entropy (ApEn) of a 1-D signal.
 
     Parameters
     ----------
-    U : array
+    x : array
         1-D input signal.
     m : int
         Embedding dimension (default 3).
     r : float
-        Tolerance factor, multiplied by std(U) (default 0.2).
+        Tolerance factor, multiplied by std(x) (default 0.2).
 
     Returns
     -------
     float
         Approximate entropy value.
     """
-    U = _validate_signal(U)
-    N = U.shape[0]
-    r *= np.std(U, axis=0)
+    x = _validate_signal(x)
+    N = x.shape[0]
+    r *= np.std(x, axis=0)
 
     def _phi(m):
         z = N - m + 1.0
-        x = np.array([U[i : i + m] for i in range(int(z))])
-        X = np.repeat(x[:, np.newaxis], 1, axis=2)
-        C = np.sum(np.absolute(x - X).max(axis=2) <= r, axis=0) / z
+        emb = np.array([x[i : i + m] for i in range(int(z))])
+        X = np.repeat(emb[:, np.newaxis], 1, axis=2)
+        C = np.sum(np.absolute(emb - X).max(axis=2) <= r, axis=0) / z
         return np.log(C).sum() / z
 
     phi1 = _phi(m)
@@ -186,32 +186,32 @@ def approximate_entropy(U, m=3, r=0.2, **kwargs):
     return apen
 
 
-def sample_entropy(X, m=2, r=0.2, **kwargs):
+def sample_entropy(x, m=2, r=0.2, **kwargs):
     """Compute sample entropy (SampEn) of a 1-D signal.
 
     Parameters
     ----------
-    X : array
+    x : array
         1-D input signal.
     m : int
         Embedding dimension (default 2).
     r : float
-        Tolerance factor, multiplied by std(X) (default 0.2).
+        Tolerance factor, multiplied by std(x) (default 0.2).
 
     Returns
     -------
     float
         Sample entropy value.  Returns ``np.inf`` when no template matches.
     """
-    X = _validate_signal(X)
-    N = len(X)
-    sigma = np.std(X)
+    x = _validate_signal(x)
+    N = len(x)
+    sigma = np.std(x)
     tolerance = sigma * r
 
     # Create embedding vectors
     matches = np.zeros((N, m + 1))
     for i in range(m + 1):
-        matches[0 : (N - i), i] = X[i:]
+        matches[0 : (N - i), i] = x[i:]
 
     # Remove empty templates
     matches = matches[:-m, :]
@@ -231,7 +231,7 @@ def sample_entropy(X, m=2, r=0.2, **kwargs):
     return sampen
 
 
-def spectral_entropy(U, sfreq=200, normalize=True, **kwargs):
+def spectral_entropy(x, sfreq=200, normalize=True, **kwargs):
     """
     Parameters
     ----------
@@ -247,9 +247,9 @@ def spectral_entropy(U, sfreq=200, normalize=True, **kwargs):
     -------
     Source: https://github.com/raphaelvallat/antropy/tree/master/antropy
     """
-    U = _validate_signal(U)
+    x = _validate_signal(x)
     # Compute and normalize power spectrum
-    _, psd = periodogram(U, sfreq, nfft=None, axis=-1)
+    _, psd = periodogram(x, sfreq, nfft=None, axis=-1)
     total = psd.sum()
     if total == 0:
         return 0.0
@@ -261,12 +261,12 @@ def spectral_entropy(U, sfreq=200, normalize=True, **kwargs):
     return se
 
 
-def permutation_entropy(data, k=3, **kwargs):
+def permutation_entropy(x, k=3, **kwargs):
     """Compute permutation entropy of a 1-D signal.
 
     Parameters
     ----------
-    data : array
+    x : array
         1-D input signal.
     k : int
         Embedding dimension for ordinal patterns (default 3).
@@ -276,24 +276,24 @@ def permutation_entropy(data, k=3, **kwargs):
     float
         Permutation entropy in bits.
     """
-    data = _validate_signal(data)
-    _, perm_probabilities = ordinal_distribution(data, dx=k)
+    x = _validate_signal(x)
+    _, perm_probabilities = ordinal_distribution(x, dx=k)
     permen = shannon_entropy(perm_probabilities)
 
     return permen
 
 
-def fuzzy_entropy(X, m=2, r=0.2, n=2, **kwargs):
+def fuzzy_entropy(x, m=2, r=0.2, n=2, **kwargs):
     """Compute fuzzy entropy (FuzzyEn) of a 1-D signal.
 
     Parameters
     ----------
-    X : array
+    x : array
         1-D input signal.
     m : int
         Embedding dimension (default 2).
     r : float
-        Tolerance factor, multiplied by std(X) (default 0.2).
+        Tolerance factor, multiplied by std(x) (default 0.2).
     n : int
         Fuzzy function gradient exponent (default 2).
 
@@ -308,9 +308,9 @@ def fuzzy_entropy(X, m=2, r=0.2, n=2, **kwargs):
         arg = np.minimum(arg, 700)  # prevent exp overflow
         return np.exp(-arg)
 
-    X = _validate_signal(X)
-    N = len(X)
-    sigma = np.std(X)
+    x = _validate_signal(x)
+    N = len(x)
+    sigma = np.std(x)
     if sigma == 0:
         return 0.0
     tolerance = sigma * r
@@ -318,7 +318,7 @@ def fuzzy_entropy(X, m=2, r=0.2, n=2, **kwargs):
     # Create embedding vectors
     matches = np.zeros((N, m + 1))
     for i in range(m + 1):
-        matches[0 : (N - i), i] = X[i:]
+        matches[0 : (N - i), i] = x[i:]
 
     # Remove empty templates
     matches = matches[:-m, :]
@@ -337,12 +337,12 @@ def fuzzy_entropy(X, m=2, r=0.2, n=2, **kwargs):
 # Non linear markers
 
 
-def corr_dim(X, embed_dim=2, rvals=None, **kwargs):
+def corr_dim(x, embed_dim=2, rvals=None, **kwargs):
     """Estimate the correlation dimension of a 1-D signal.
 
     Parameters
     ----------
-    X : array
+    x : array
         1-D input signal.
     embed_dim : int
         Embedding dimension for delay embedding (default 2).
@@ -356,9 +356,9 @@ def corr_dim(X, embed_dim=2, rvals=None, **kwargs):
         Estimated correlation dimension.  Returns ``np.nan`` when the
         signal is constant or the fit is degenerate.
     """
-    X = _validate_signal(X)
-    N = len(X)
-    sd = np.std(X, ddof=1)
+    x = _validate_signal(x)
+    N = len(x)
+    sd = np.std(x, ddof=1)
 
     if sd == 0:
         return 0.0
@@ -368,7 +368,7 @@ def corr_dim(X, embed_dim=2, rvals=None, **kwargs):
 
     delay_embed = np.zeros((N, embed_dim))
     for i in range(embed_dim):
-        delay_embed[0 : (N - i), i] = X[i:]
+        delay_embed[0 : (N - i), i] = x[i:]
     # Remove empty templates
     delay_embed = delay_embed[: -(embed_dim - 1), :]
 
@@ -394,7 +394,7 @@ def corr_dim(X, embed_dim=2, rvals=None, **kwargs):
         return poly[0]
 
 
-def line_length(X, **kwargs):
+def line_length(x, **kwargs):
     """Compute the line length of a 1-D signal.
 
     Line length is the mean absolute first-order difference of the signal,
@@ -402,7 +402,7 @@ def line_length(X, **kwargs):
 
     Parameters
     ----------
-    X : array
+    x : array
         1-D input signal.
 
     Returns
@@ -417,8 +417,8 @@ def line_length(X, **kwargs):
            Conference of the IEEE EMBS*, Vol. 2, pp. 1707-1710.
     """
 
-    X = _validate_signal(X)
-    diff = np.diff(X)
+    x = _validate_signal(x)
+    diff = np.diff(x)
     length = np.mean(np.abs(diff))
 
     return length
@@ -427,12 +427,12 @@ def line_length(X, **kwargs):
 # Linear markers
 
 
-def peak_alpha(X, sfreq=200, **kwargs):
+def peak_alpha(x, sfreq=200, **kwargs):
     """Find the peak frequency in the alpha band (8–13 Hz).
 
     Parameters
     ----------
-    X : array
+    x : array
         1-D input signal.
     sfreq : float
         Sampling frequency in Hz (default 200).
@@ -442,8 +442,8 @@ def peak_alpha(X, sfreq=200, **kwargs):
     float
         Peak alpha frequency in Hz.
     """
-    X = _validate_signal(X)
-    psd, freqs = psd_array_multitaper(X, sfreq, normalization="length")  # type: ignore
+    x = _validate_signal(x)
+    psd, freqs = psd_array_multitaper(x, sfreq, normalization="length")  # type: ignore
     alpha_band = np.where((freqs >= 8) & (freqs <= 13))[0]
     peak_alpha_ind = np.argmax(psd[alpha_band])
     peak_alpha = freqs[alpha_band][peak_alpha_ind]
@@ -451,17 +451,17 @@ def peak_alpha(X, sfreq=200, **kwargs):
     return peak_alpha
 
 
-def hurst_exp(X, min_window=10, max_window=None, **kwargs):
+def hurst_exp(x, min_window=10, max_window=None, **kwargs):
     """Estimate the Hurst exponent via rescaled range (R/S) analysis.
 
     Parameters
     ----------
-    X : array
+    x : array
         1-D input signal.
     min_window : int
         Minimum window size for R/S calculation (default 10).
     max_window : int or None
-        Maximum window size.  If ``None``, uses ``len(X) - 1``.
+        Maximum window size.  If ``None``, uses ``len(x) - 1``.
 
     Returns
     -------
@@ -470,24 +470,24 @@ def hurst_exp(X, min_window=10, max_window=None, **kwargs):
         persistent series, H < 0.5 for anti-persistent series).
     """
 
-    X = _validate_signal(X)
+    x = _validate_signal(x)
     # Get windows sizes in log scale
-    max_window = max_window or len(X) - 1
+    max_window = max_window or len(x) - 1
     window_sizes = list(
         map(
-            lambda x: int(10**x),
+            lambda v: int(10**v),
             np.arange(math.log10(min_window), math.log10(max_window), 0.25),
         )
     )
-    window_sizes.append(len(X))
+    window_sizes.append(len(x))
 
     RS = []
     for w in window_sizes:
         rs = []
-        for start in range(0, len(X), w):
-            if (start + w) > len(X):
+        for start in range(0, len(x), w):
+            if (start + w) > len(x):
                 break
-            _ = rescaled_range(X[start : start + w])
+            _ = rescaled_range(x[start : start + w])
             if _ != 0:
                 rs.append(_)
         RS.append(np.mean(rs) if rs else 0.0)
