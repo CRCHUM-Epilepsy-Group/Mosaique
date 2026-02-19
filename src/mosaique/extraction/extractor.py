@@ -279,9 +279,10 @@ class FeatureExtractor:
             self.logger.info("-" * 50)
 
             with Progress(console=self.console, transient=True) as progress:
-                progress_string = f"Extracting {framework_name}..."
+                n_features = len(self._make_param_grid(self._features[framework_name]))
                 task_id = progress.add_task(
-                    progress_string, total=len(self._transform_grid)
+                    f"Transforming ({framework_name})...",
+                    total=len(self._transform_grid) * n_features,
                 )
 
                 for self._curr_transform_params in self._transform_grid:
@@ -301,6 +302,7 @@ class FeatureExtractor:
                     # 2. Apply pre-extraction transform
                     self._transformed_eeg = self._curr_transform.transform(eeg)
                     transform_time = time.perf_counter() - transform_start
+                    progress.update(task_id, description=f"Extracting ({framework_name})...")
 
                     self.logger.info(
                         f"Transform {framework_name}: {self._curr_transform_params} completed in {transform_time:.2f}s"

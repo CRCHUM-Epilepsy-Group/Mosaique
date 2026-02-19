@@ -114,7 +114,9 @@ class PreExtractionTransform(ABC, Generic[T]):
         eeg_start_time = eeg.info["meas_date"]
         epoch_times = np.array(
             [
-                np.datetime64(datetime.timedelta(seconds=t) + eeg_start_time)
+                np.datetime64(
+                    (datetime.timedelta(seconds=t) + eeg_start_time).replace(tzinfo=None)
+                )
                 for t in epoch_start_times
             ]
         )

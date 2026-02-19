@@ -452,7 +452,7 @@ def peak_alpha(x: np.ndarray, sfreq: float = 200, **kwargs: Any) -> float:
         Peak alpha frequency in Hz.
     """
     x = _validate_signal(x)
-    psd, freqs = psd_array_multitaper(x, sfreq, normalization="length")  # type: ignore
+    psd, freqs = psd_array_multitaper(x, sfreq, normalization="length", verbose=False)  # type: ignore
     alpha_band = np.where((freqs >= 8) & (freqs <= 13))[0]
     peak_alpha_ind = np.argmax(psd[alpha_band])
     peak_alpha = freqs[alpha_band][peak_alpha_ind]
@@ -544,6 +544,7 @@ def band_power(x: np.ndarray, freqs: list[FrequencyBand], sfreq: float = 200, **
         low_bias=False,
         n_jobs=1,
         normalization="length",
+        verbose=False,
     )
 
     # Find indices for each band
