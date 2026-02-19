@@ -9,6 +9,18 @@ from mosaique.features.timefrequency import (
 import networkx as nx
 
 
+def _validate_matrix(mat):
+    """Validate a connectivity matrix."""
+    mat = np.asarray(mat, dtype=float)
+    if mat.shape[0] < 2 or mat.shape[1] < 2:
+        raise ValueError("Connectivity matrix must be at least 2x2")
+    if np.any(np.isnan(mat)):
+        raise ValueError("Connectivity matrix contains NaN values")
+    if np.any(np.isinf(mat)):
+        raise ValueError("Connectivity matrix contains Inf values")
+    return mat
+
+
 def cwt_spectral_connectivity(
     eeg: np.ndarray,
     *,  # arguments are keywords only
@@ -219,6 +231,7 @@ def average_clustering(mat, **kwargs):
     -------
     float
     """
+    mat = _validate_matrix(mat)
     G = nx.from_numpy_array(mat)
     return nx.average_clustering(G)
 
@@ -235,6 +248,7 @@ def average_node_connectivity(mat, **kwargs):
     -------
     float
     """
+    mat = _validate_matrix(mat)
     G = nx.from_numpy_array(mat)
     return nx.average_node_connectivity(G)
 
@@ -251,6 +265,7 @@ def average_degree(mat, **kwargs):
     -------
     float
     """
+    mat = _validate_matrix(mat)
     G = nx.from_numpy_array(mat)
     degree = nx.degree(G)
     return np.average(degree)
@@ -268,6 +283,7 @@ def global_efficiency(mat, **kwargs):
     -------
     float
     """
+    mat = _validate_matrix(mat)
     G = nx.from_numpy_array(mat)
     return nx.global_efficiency(G)
 
@@ -283,11 +299,17 @@ def average_shortest_path_length(mat, **kwargs):
     Returns
     -------
     float
-
-    Raises
-    ------
-    networkx.NetworkXError
-        If the graph is not connected.
     """
+    mat = _validate_matrix(mat)
     G = nx.from_numpy_array(mat)
+    if not nx.is_connected(G):
+        total = 0.0
+        total_pairs = 0
+        for comp in nx.connected_components(G):
+            sg = G.subgraph(comp)
+            n = len(sg)
+            if n > 1:
+                total += nx.average_shortest_path_length(sg) * n * (n - 1)
+                total_pairs += n * (n - 1)
+        return total / total_pairs if total_pairs > 0 else 0.0
     return nx.average_shortest_path_length(G)

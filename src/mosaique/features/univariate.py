@@ -18,6 +18,22 @@ from mosaique.features.timefrequency import FrequencyBand
 
 
 # Helper functions
+
+
+def _validate_signal(x, min_samples=2):
+    """Validate 1-D signal input for univariate features."""
+    x = np.asarray(x, dtype=float)
+    if x.ndim != 1:
+        raise ValueError(f"Expected 1-D signal, got {x.ndim}-D input")
+    if x.size < min_samples:
+        raise ValueError(f"Signal too short: {x.size} samples, need >= {min_samples}")
+    if np.any(np.isnan(x)):
+        raise ValueError("Signal contains NaN values")
+    if np.any(np.isinf(x)):
+        raise ValueError("Signal contains Inf values")
+    return x
+
+
 def skip_nones(fun):
     def _(*args, **kwargs):
         for a, v in zip(fun.__code__.co_varnames, args):
@@ -152,6 +168,7 @@ def approximate_entropy(U, m=3, r=0.2, **kwargs):
     float
         Approximate entropy value.
     """
+    U = _validate_signal(U)
     N = U.shape[0]
     r *= np.std(U, axis=0)
 
@@ -186,6 +203,7 @@ def sample_entropy(X, m=2, r=0.2, **kwargs):
     float
         Sample entropy value.  Returns ``np.inf`` when no template matches.
     """
+    X = _validate_signal(X)
     N = len(X)
     sigma = np.std(X)
     tolerance = sigma * r
@@ -229,6 +247,7 @@ def spectral_entropy(U, sfreq=200, normalize=True, **kwargs):
     -------
     Source: https://github.com/raphaelvallat/antropy/tree/master/antropy
     """
+    U = _validate_signal(U)
     # Compute and normalize power spectrum
     _, psd = periodogram(U, sfreq, nfft=None, axis=-1)
     total = psd.sum()
@@ -257,6 +276,7 @@ def permutation_entropy(data, k=3, **kwargs):
     float
         Permutation entropy in bits.
     """
+    data = _validate_signal(data)
     _, perm_probabilities = ordinal_distribution(data, dx=k)
     permen = shannon_entropy(perm_probabilities)
 
@@ -284,9 +304,11 @@ def fuzzy_entropy(X, m=2, r=0.2, n=2, **kwargs):
     """
 
     def fuzzy_fun(dist, gradient, width):
-        y = np.exp(-(dist**gradient) / width)
-        return y
+        arg = (dist**gradient) / width
+        arg = np.minimum(arg, 700)  # prevent exp overflow
+        return np.exp(-arg)
 
+    X = _validate_signal(X)
     N = len(X)
     sigma = np.std(X)
     if sigma == 0:
@@ -334,6 +356,7 @@ def corr_dim(X, embed_dim=2, rvals=None, **kwargs):
         Estimated correlation dimension.  Returns ``np.nan`` when the
         signal is constant or the fit is degenerate.
     """
+    X = _validate_signal(X)
     N = len(X)
     sd = np.std(X, ddof=1)
 
@@ -394,6 +417,7 @@ def line_length(X, **kwargs):
            Conference of the IEEE EMBS*, Vol. 2, pp. 1707-1710.
     """
 
+    X = _validate_signal(X)
     diff = np.diff(X)
     length = np.mean(np.abs(diff))
 
@@ -418,6 +442,7 @@ def peak_alpha(X, sfreq=200, **kwargs):
     float
         Peak alpha frequency in Hz.
     """
+    X = _validate_signal(X)
     psd, freqs = psd_array_multitaper(X, sfreq, normalization="length")  # type: ignore
     alpha_band = np.where((freqs >= 8) & (freqs <= 13))[0]
     peak_alpha_ind = np.argmax(psd[alpha_band])
@@ -445,6 +470,7 @@ def hurst_exp(X, min_window=10, max_window=None, **kwargs):
         persistent series, H < 0.5 for anti-persistent series).
     """
 
+    X = _validate_signal(X)
     # Get windows sizes in log scale
     max_window = max_window or len(X) - 1
     window_sizes = list(
@@ -501,6 +527,7 @@ def band_power(x, freqs: list[FrequencyBand], sfreq=200, **kwargs):
     dict
         Band powers for each frequency band
     """
+    x = _validate_signal(x)
     # Calculate PSD
     psd, freq_bins = psd_array_multitaper(
         x,
@@ -519,6 +546,9 @@ def band_power(x, freqs: list[FrequencyBand], sfreq=200, **kwargs):
     # Calculate power for each band
     df = freq_bins[1] - freq_bins[0]
     total_power = simpson(psd, dx=df)
+
+    if total_power == 0:
+        return {band: 0.0 for band in freqs}
 
     powers = {}
     for band in freqs:
