@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import mne
+import psutil
 import mne.time_frequency
 import numpy as np
 import polars as pl
@@ -25,6 +26,29 @@ import polars as pl
 from mosaique.features import connectivity as conn_feats
 from mosaique.features import univariate as univ
 from mosaique.utils.eeg_helpers import get_region_side
+
+_PROC = psutil.Process()
+
+
+def _snap() -> dict:
+    """Capture a process resource snapshot."""
+    cpu = _PROC.cpu_times()
+    return {
+        "wall": time.perf_counter(),
+        "cpu_user": cpu.user,
+        "cpu_sys": cpu.system,
+        "rss_mb": _PROC.memory_info().rss / 1024**2,
+    }
+
+
+def _report(start: dict, end: dict, label: str) -> None:
+    wall = end["wall"] - start["wall"]
+    cpu = (end["cpu_user"] - start["cpu_user"]) + (end["cpu_sys"] - start["cpu_sys"])
+    print(
+        f"  [{label}] "
+        f"wall={wall:.2f}s | cpu={cpu:.2f}s | "
+        f"RAM start={start['rss_mb']:.1f} MB → end={end['rss_mb']:.1f} MB"
+    )
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -385,25 +409,25 @@ def extract_connectivity_features(epochs: mne.Epochs) -> pl.DataFrame:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    edf_files = sorted(DATA_DIR.rglob("*.edf"))
+    edf_files = sorted(DATA_DIR.rglob("*.edf"))[:2]
     if not edf_files:
         print(f"No EDF files found in {DATA_DIR}")
         return
 
-    print(f"Found {len(edf_files)} EDF file(s) in {DATA_DIR}\n")
+    print(f"Processing {len(edf_files)} EDF file(s) from {DATA_DIR}\n")
 
     all_features: list[pl.DataFrame] = []
+    overall_start = _snap()
 
     for edf_path in edf_files:
         print(f"Processing: {edf_path.name}")
+        file_start = _snap()
 
         epochs = load_and_epoch_edf(edf_path)
         print(
             f"  {len(epochs)} epochs, {len(epochs.ch_names)} channels, "
             f"sfreq={epochs.info['sfreq']} Hz"
         )
-
-        t_total = time.perf_counter()
 
         print("  [simple features]")
         df_simple = extract_simple_features(epochs)
@@ -418,8 +442,12 @@ def main() -> None:
         df = df.with_columns(file=pl.lit(edf_path.name))
         all_features.append(df)
 
-        elapsed = time.perf_counter() - t_total
-        print(f"  Extracted {len(df)} feature rows in {elapsed:.1f}s\n")
+        file_end = _snap()
+        print(f"  Extracted {len(df)} feature rows")
+        _report(file_start, file_end, edf_path.name)
+        print()
+
+    overall_end = _snap()
 
     result = pl.concat(all_features, how="diagonal_relaxed")
     print("=" * 60)
@@ -427,6 +455,8 @@ def main() -> None:
     print(f"Columns: {result.columns}")
     print("=" * 60)
     print(result.head(20))
+    print()
+    _report(overall_start, overall_end, "TOTAL")
 
     OUTPUT_DIR.mkdir(exist_ok=True)
     output_path = OUTPUT_DIR / "features_mne.parquet"
