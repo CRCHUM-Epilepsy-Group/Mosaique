@@ -186,9 +186,9 @@ def cwt_eeg(
     num_workers: int = 1,
     skip_reconstr: bool = False,
     skip_complex: bool = False,
-    debug=False,
-    disable_progress=False,
-    console=Console(),
+    debug: bool = False,
+    disable_progress: bool = False,
+    console: Console = Console(),
     **kwargs,
 ) -> tuple[WaveletCoefficients, np.ndarray]:
     """Continuous Wavelet Transform (CWT) of EEG signals.

@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import pywt
 from mosaique.features.timefrequency import (
@@ -9,7 +11,7 @@ from mosaique.features.timefrequency import (
 import networkx as nx
 
 
-def _validate_matrix(mat):
+def _validate_matrix(mat: np.ndarray) -> np.ndarray:
     """Validate a connectivity matrix."""
     mat = np.asarray(mat, dtype=float)
     if mat.shape[0] < 2 or mat.shape[1] < 2:
@@ -158,7 +160,7 @@ def connectivity_from_coeff(
     return connectivities
 
 
-def connected_threshold(mat):
+def connected_threshold(mat: np.ndarray) -> np.ndarray:
     """Threshold a connectivity matrix using the minimum spanning tree.
 
     Edges below the minimum weight in the maximum spanning tree are set
@@ -184,7 +186,7 @@ def connected_threshold(mat):
     return thresholded_mat
 
 
-def binary_threshold(mat):
+def binary_threshold(mat: np.ndarray) -> np.ndarray:
     """Binary-threshold a connectivity matrix while keeping it connected.
 
     Starts at threshold 0.4 and decreases by 0.01 until the resulting
@@ -219,7 +221,7 @@ def binary_threshold(mat):
     return thresholded_net
 
 
-def average_clustering(mat, **kwargs):
+def average_clustering(mat: np.ndarray, **kwargs: Any) -> float:
     """Average clustering coefficient of the graph.
 
     Parameters
@@ -236,7 +238,7 @@ def average_clustering(mat, **kwargs):
     return nx.average_clustering(G)
 
 
-def average_node_connectivity(mat, **kwargs):
+def average_node_connectivity(mat: np.ndarray, **kwargs: Any) -> float:
     """Average node connectivity (expected number of node-independent paths).
 
     Parameters
@@ -253,7 +255,7 @@ def average_node_connectivity(mat, **kwargs):
     return nx.average_node_connectivity(G)
 
 
-def average_degree(mat, **kwargs):
+def average_degree(mat: np.ndarray, **kwargs: Any) -> float:
     """Average node degree of the graph.
 
     Parameters
@@ -271,7 +273,7 @@ def average_degree(mat, **kwargs):
     return np.average(degree)
 
 
-def global_efficiency(mat, **kwargs):
+def global_efficiency(mat: np.ndarray, **kwargs: Any) -> float:
     """Global efficiency of the graph.
 
     Parameters
@@ -288,7 +290,7 @@ def global_efficiency(mat, **kwargs):
     return nx.global_efficiency(G)
 
 
-def average_shortest_path_length(mat, **kwargs):
+def average_shortest_path_length(mat: np.ndarray, **kwargs: Any) -> float:
     """Average shortest path length of the graph.
 
     Parameters

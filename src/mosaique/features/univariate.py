@@ -8,6 +8,9 @@ Must return single values or dictionaries if multiple values are generated
 
 import collections
 import math
+from collections.abc import Callable
+from typing import Any
+
 import numpy as np
 from scipy.signal import periodogram
 from scipy.spatial.distance import pdist
@@ -20,7 +23,7 @@ from mosaique.features.timefrequency import FrequencyBand
 # Helper functions
 
 
-def _validate_signal(x, min_samples=2):
+def _validate_signal(x: np.ndarray, min_samples: int = 2) -> np.ndarray:
     """Validate 1-D signal input for univariate features."""
     x = np.asarray(x, dtype=float)
     if x.ndim != 1:
@@ -34,8 +37,8 @@ def _validate_signal(x, min_samples=2):
     return x
 
 
-def skip_nones(fun):
-    def _(*args, **kwargs):
+def skip_nones(fun: Callable) -> Callable:
+    def _(*args: Any, **kwargs: Any) -> Any:
         for a, v in zip(fun.__code__.co_varnames, args):
             if v is not None:
                 kwargs[a] = v
@@ -44,7 +47,7 @@ def skip_nones(fun):
     return _
 
 
-def logarithmic_r(min_n, max_n, factor):
+def logarithmic_r(min_n: float, max_n: float, factor: float) -> np.ndarray:
     """
     Creates a list of values by successively multiplying a minimum value min_n by
     a factor > 1 until a maximum value max_n is reached.
@@ -65,7 +68,7 @@ def logarithmic_r(min_n, max_n, factor):
     return np.array([min_n * (factor**i) for i in range(max_i + 1)])
 
 
-def shannon_entropy(x, **kwargs):
+def shannon_entropy(x: np.ndarray, **kwargs: Any) -> float:
     probabilities = [n_x / len(x) for _, n_x in collections.Counter(x).items()]
     e_x = [-p_x * math.log(p_x, 2) for p_x in probabilities]
     entropy = sum(e_x)
@@ -73,8 +76,14 @@ def shannon_entropy(x, **kwargs):
 
 
 def ordinal_distribution(
-    data, dx=3, dy=1, taux=1, tauy=1, return_missing=False, tie_precision=None
-):
+    data: np.ndarray,
+    dx: int = 3,
+    dy: int = 1,
+    taux: int = 1,
+    tauy: int = 1,
+    return_missing: bool = False,
+    tie_precision: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Applies the Bandt and Pompe\\ [#bandt_pompe]_ symbolization approach to obtain
     a probability distribution of ordinal patterns (permutations) from data.
@@ -130,7 +139,7 @@ def ordinal_distribution(
     return symbols, probabilities
 
 
-def rescaled_range(x):
+def rescaled_range(x: np.ndarray) -> float:
     mean = np.mean(x)
     deviations = x - mean
     Z = np.cumsum(deviations)
@@ -151,7 +160,7 @@ def rescaled_range(x):
 # Entropies
 
 
-def approximate_entropy(x, m=3, r=0.2, **kwargs):
+def approximate_entropy(x: np.ndarray, m: int = 3, r: float = 0.2, **kwargs: Any) -> float:
     """Compute approximate entropy (ApEn) of a 1-D signal.
 
     Parameters
@@ -186,7 +195,7 @@ def approximate_entropy(x, m=3, r=0.2, **kwargs):
     return apen
 
 
-def sample_entropy(x, m=2, r=0.2, **kwargs):
+def sample_entropy(x: np.ndarray, m: int = 2, r: float = 0.2, **kwargs: Any) -> float:
     """Compute sample entropy (SampEn) of a 1-D signal.
 
     Parameters
@@ -231,7 +240,7 @@ def sample_entropy(x, m=2, r=0.2, **kwargs):
     return sampen
 
 
-def spectral_entropy(x, sfreq=200, normalize=True, **kwargs):
+def spectral_entropy(x: np.ndarray, sfreq: float = 200, normalize: bool = True, **kwargs: Any) -> float:
     """
     Parameters
     ----------
@@ -261,7 +270,7 @@ def spectral_entropy(x, sfreq=200, normalize=True, **kwargs):
     return se
 
 
-def permutation_entropy(x, k=3, **kwargs):
+def permutation_entropy(x: np.ndarray, k: int = 3, **kwargs: Any) -> float:
     """Compute permutation entropy of a 1-D signal.
 
     Parameters
@@ -283,7 +292,7 @@ def permutation_entropy(x, k=3, **kwargs):
     return permen
 
 
-def fuzzy_entropy(x, m=2, r=0.2, n=2, **kwargs):
+def fuzzy_entropy(x: np.ndarray, m: int = 2, r: float = 0.2, n: int = 2, **kwargs: Any) -> float:
     """Compute fuzzy entropy (FuzzyEn) of a 1-D signal.
 
     Parameters
@@ -337,7 +346,7 @@ def fuzzy_entropy(x, m=2, r=0.2, n=2, **kwargs):
 # Non linear markers
 
 
-def corr_dim(x, embed_dim=2, rvals=None, **kwargs):
+def corr_dim(x: np.ndarray, embed_dim: int = 2, rvals: np.ndarray | None = None, **kwargs: Any) -> float:
     """Estimate the correlation dimension of a 1-D signal.
 
     Parameters
@@ -394,7 +403,7 @@ def corr_dim(x, embed_dim=2, rvals=None, **kwargs):
         return poly[0]
 
 
-def line_length(x, **kwargs):
+def line_length(x: np.ndarray, **kwargs: Any) -> float:
     """Compute the line length of a 1-D signal.
 
     Line length is the mean absolute first-order difference of the signal,
@@ -427,7 +436,7 @@ def line_length(x, **kwargs):
 # Linear markers
 
 
-def peak_alpha(x, sfreq=200, **kwargs):
+def peak_alpha(x: np.ndarray, sfreq: float = 200, **kwargs: Any) -> float:
     """Find the peak frequency in the alpha band (8–13 Hz).
 
     Parameters
@@ -451,7 +460,7 @@ def peak_alpha(x, sfreq=200, **kwargs):
     return peak_alpha
 
 
-def hurst_exp(x, min_window=10, max_window=None, **kwargs):
+def hurst_exp(x: np.ndarray, min_window: int = 10, max_window: int | None = None, **kwargs: Any) -> float:
     """Estimate the Hurst exponent via rescaled range (R/S) analysis.
 
     Parameters
@@ -510,7 +519,7 @@ def hurst_exp(x, min_window=10, max_window=None, **kwargs):
     return H
 
 
-def band_power(x, freqs: list[FrequencyBand], sfreq=200, **kwargs):
+def band_power(x: np.ndarray, freqs: list[FrequencyBand], sfreq: float = 200, **kwargs: Any) -> dict[FrequencyBand, float]:
     """Get average band power for frequency bands.
 
     Parameters
