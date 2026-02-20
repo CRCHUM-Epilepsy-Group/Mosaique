@@ -49,7 +49,7 @@ def get_wpd_freqs(max_level: int, sfreq: float) -> list[FrequencyBand]:
 
 
 def get_dwt_freqs(max_level: int, sfreq: float) -> list[FrequencyBand]:
-    """Get frequency bands of Wavelet Packet decomposition"""
+    """Get frequency bands of Discrete Wavelet Transform decomposition."""
     dwt_freqs: list[FrequencyBand] = [
         (
             (sfreq / 2 ** (n + 2) if n != max_level else 0),
