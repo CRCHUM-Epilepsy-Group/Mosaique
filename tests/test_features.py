@@ -237,6 +237,39 @@ class TestPeakAlpha:
 
 
 # ===========================================================================
+# Numerical correctness — univariate
+# ===========================================================================
+
+
+class TestUnivariateCorrectness:
+    """Ground-truth tests for known-output signals."""
+
+    def test_line_length_alternating(self):
+        # [0, 1, 0, 1, 0]: mean absolute diff = mean([1,1,1,1]) = 1.0
+        x = np.array([0.0, 1.0, 0.0, 1.0, 0.0])
+        assert line_length(x) == pytest.approx(1.0)
+
+    def test_permutation_entropy_monotonic(self):
+        # A monotonically increasing signal has a single ordinal pattern → entropy = 0
+        x = np.arange(100, dtype=float)
+        assert permutation_entropy(x) == pytest.approx(0.0)
+
+    def test_spectral_entropy_pure_sine(self):
+        # A pure sine concentrates power in one bin → low entropy
+        t = np.linspace(0, 1, 500, endpoint=False)
+        sine = np.sin(2 * np.pi * 10 * t)
+        noise = np.random.default_rng(42).normal(0, 0.01, 500)
+        # Compare: pure sine vs. broadband noise
+        se_sine = spectral_entropy(sine, sfreq=500)
+        se_noise = spectral_entropy(noise, sfreq=500)
+        assert se_sine < se_noise
+
+    def test_line_length_constant(self):
+        x = np.ones(100)
+        assert line_length(x) == pytest.approx(0.0)
+
+
+# ===========================================================================
 # Connectivity features
 # ===========================================================================
 
