@@ -101,6 +101,16 @@ class TestUnivariateFlatSignal:
         assert np.isfinite(result)
 
 
+class TestSampleEntropyUndefined:
+    """sample_entropy returns np.nan when no template matches (B==0)."""
+
+    def test_returns_nan_when_no_matches(self):
+        # Monotonically increasing: all m-dim templates are far apart with small r
+        x = np.array([0.0, 100.0, 200.0, 300.0, 400.0])
+        result = sample_entropy(x, m=2, r=0.001)
+        assert np.isnan(result)
+
+
 class TestUnivariateRejectsNaN:
     """NaN in input must raise ValueError (not silently return garbage)."""
 

@@ -210,7 +210,7 @@ def sample_entropy(x: np.ndarray, m: int = 2, r: float = 0.2, **kwargs: Any) -> 
     Returns
     -------
     float
-        Sample entropy value.  Returns ``np.inf`` when no template matches.
+        Sample entropy value.  Returns ``np.nan`` when no template matches.
     """
     x = _validate_signal(x)
     N = len(x)
@@ -229,7 +229,7 @@ def sample_entropy(x: np.ndarray, m: int = 2, r: float = 0.2, **kwargs: Any) -> 
     B = (dist_m <= tolerance).sum()
 
     if B == 0:
-        return np.inf
+        return np.nan
 
     dist_m1 = pdist(matches, metric="chebyshev")
     A = (dist_m1 <= tolerance).sum()
