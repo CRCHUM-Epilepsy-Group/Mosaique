@@ -286,6 +286,6 @@ def cwt_eeg(
         for i, band in enumerate(freqs):
             coeff[band][epoch_idx] = epoch_results[band]
             if not skip_reconstr:
-                reconstr[epoch_idx, ..., i] = np.abs(epoch_results[band]).mean(axis=0)
+                reconstr[epoch_idx, ..., i] = np.abs(epoch_results[band]).mean(axis=1)
 
     return coeff, reconstr.swapaxes(-1, -2)

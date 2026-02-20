@@ -12,7 +12,7 @@ from pathlib import Path
 import polars as pl
 import psutil
 
-from mosaique import FeatureExtractor, parse_featureextraction_config
+from mosaique import FeatureExtractor, parse_featureextraction_config, resolve_pipeline
 from mosaique.utils.eeg_helpers import load_and_epoch_edf
 
 _PROC = psutil.Process()
@@ -52,7 +52,8 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 1. Parse the feature extraction config
     # ------------------------------------------------------------------
-    features, frameworks = parse_featureextraction_config(CONFIG_FILE)
+    pipeline = parse_featureextraction_config(CONFIG_FILE)
+    features, frameworks = resolve_pipeline(pipeline)
 
     # ------------------------------------------------------------------
     # 2. Discover EDF files (limit to first 2 for benchmarking)

@@ -37,7 +37,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCo
 from rich.table import Table
 
 from mosaique import FeatureExtractor
-from mosaique.config.types import PreGridParams
+from mosaique.config.types import ExtractionStep
 from mosaique.features import STANDARD_BANDS, TF_BANDS, connectivity as conn_feats
 from mosaique.features import univariate as univ
 from mosaique.features.timefrequency import cwt_eeg
@@ -334,8 +334,8 @@ def _mne_extract_conn(
 
 def _build_mosaique_config(
     group: str, n_features: int
-) -> tuple[dict[str, list[PreGridParams]], dict[str, list[PreGridParams]]]:
-    """Build features/frameworks dicts of PreGridParams for a feature subset."""
+) -> tuple[dict[str, list[ExtractionStep]], dict[str, list[ExtractionStep]]]:
+    """Build features/frameworks dicts of ExtractionStep for a feature subset."""
     if group == "simple":
         param_defs = MOSAIQUE_SIMPLE_PARAMS[:n_features]
     elif group == "tf_decomposition":
@@ -345,21 +345,21 @@ def _build_mosaique_config(
     else:
         raise ValueError(f"Unknown group: {group}")
 
-    feature_params: list[PreGridParams] = []
+    feature_params: list[ExtractionStep] = []
     for name, dotted_path, params in param_defs:
         func = _resolve_function(dotted_path)
-        feature_params.append(PreGridParams(
+        feature_params.append(ExtractionStep(
             name=name,
             function=func,
             params=params if params is not None else {},
         ))
 
     # Build the corresponding framework
-    fw_params: list[PreGridParams]
+    fw_params: list[ExtractionStep]
     if group == "simple":
-        fw_params = [PreGridParams(name="simple", function=None, params={})]  # type: ignore[arg-type]
+        fw_params = [ExtractionStep(name="simple", function=None, params={})]  # type: ignore[arg-type]
     elif group == "tf_decomposition":
-        fw_params = [PreGridParams(
+        fw_params = [ExtractionStep(
             name="cwt",
             function=cwt_eeg,
             params={
@@ -373,13 +373,13 @@ def _build_mosaique_config(
         # - skip_reconstr=True: PLI doesn't need the reconstructed signal
         # - skip_complex=False: PLI requires complex wavelet coefficients
         # - don't pass method="pli": that would override cwt_eeg's fft/conv method
-        fw_params = [PreGridParams(
+        fw_params = [ExtractionStep(
             name="pli",
             function=connectivity_from_coeff,
             params={
                 "freqs": [CONN_BANDS],
-                "wavelet": "cmor1.5-1.0",
-                "skip_reconstr": True,
+                "wavelet": ["cmor1.5-1.0"],
+                "skip_reconstr": [True],
             },
         )]
 

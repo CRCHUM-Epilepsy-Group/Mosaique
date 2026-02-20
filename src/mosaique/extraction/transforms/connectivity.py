@@ -44,6 +44,9 @@ class ConnectivityTransform(PreExtractionTransform):
 
         tag = self._make_cache_tag()
         # Reuse cached coefficients only when the computation parameters match
+        # Filter out params that are for the connectivity function, not CWT.
+        # "method" conflicts: cwt_eeg expects "fft"/"conv", connectivity uses "pli"/"corr".
+        cwt_params = {k: v for k, v in self._params.items() if k != "method"}
         try:
             bands_cached = all(
                 f in self._cached_coeffs for f in self._params["freqs"]
@@ -51,9 +54,9 @@ class ConnectivityTransform(PreExtractionTransform):
             if bands_cached and self._cache_tag == tag:
                 coeffs = self._cached_coeffs
             else:
-                coeffs = cwt_eeg(eeg_data, **self._params)
+                coeffs, _ = cwt_eeg(eeg_data, **cwt_params)
         except KeyError:
-            coeffs = cwt_eeg(eeg_data, **self._params)
+            coeffs, _ = cwt_eeg(eeg_data, **cwt_params)
 
         self._cached_coeffs = coeffs
         self._cache_tag = tag
