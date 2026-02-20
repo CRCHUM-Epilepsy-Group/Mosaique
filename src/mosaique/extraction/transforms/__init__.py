@@ -32,9 +32,9 @@ Adding a custom transform
 
        TRANSFORM_REGISTRY["my_transform"] = MyTransform
 
-3. In your YAML config, use the registered name as a framework key::
+3. In your YAML config, use the registered name as a transform key::
 
-       frameworks:
+       transforms:
          my_transform:
            - name: my_transform
              function: null
@@ -58,7 +58,7 @@ TRANSFORM_REGISTRY: dict[str, type[PreExtractionTransform]] = {
     "simple": SimpleTransform,
     "connectivity": ConnectivityTransform,
 }
-"""Mapping from framework name (as used in YAML configs) to transform class.
+"""Mapping from transform name (as used in YAML configs) to transform class.
 
 Add custom transforms here so that :class:`FeatureExtractor` can look them
 up by name.

@@ -64,7 +64,7 @@ features:
       function: connectivity.average_shortest_path_length
       params:
 
-frameworks:
+transforms:
   simple:
     - name: simple
       function: null

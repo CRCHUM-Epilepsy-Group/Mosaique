@@ -140,7 +140,7 @@ features:
         m: [2, 3]
         r: [0.2]
 
-frameworks:
+transforms:
   simple:
     - name: simple
       function: null
