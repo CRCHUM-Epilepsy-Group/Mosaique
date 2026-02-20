@@ -9,11 +9,11 @@ windows, runs the full feature extraction pipeline configured in
 import time
 from pathlib import Path
 
-import mne
 import polars as pl
 import psutil
 
 from mosaique import FeatureExtractor, parse_featureextraction_config
+from mosaique.utils.eeg_helpers import load_and_epoch_edf
 
 _PROC = psutil.Process()
 
@@ -46,44 +46,6 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 CONFIG_FILE = SCRIPT_DIR / "features_config.yaml"
 DATA_DIR = PROJECT_ROOT / "tests" / "test_data"
 OUTPUT_DIR = SCRIPT_DIR / "output"
-
-
-def load_and_epoch_edf(
-    edf_path: Path,
-    epoch_duration: float = 5.0,
-    l_freq: float = 1.0,
-    h_freq: float = 50.0,
-    tmax: float = 120.0,
-) -> mne.Epochs:
-    """Load an EDF file and segment it into fixed-length epochs.
-
-    Parameters
-    ----------
-    edf_path : Path
-        Path to the ``.edf`` file.
-    epoch_duration : float
-        Duration of each epoch in seconds.
-    l_freq : float
-        Lower bandpass frequency in Hz.
-    h_freq : float
-        Upper bandpass frequency in Hz.
-    tmax : float
-        Only keep the first ``tmax`` seconds of the recording.
-
-    Returns
-    -------
-    mne.Epochs
-        Epoched EEG data.
-    """
-    raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
-    raw.crop(tmax=min(tmax, raw.times[-1]))
-    raw.filter(l_freq, h_freq, verbose=False)
-
-    # Create fixed-length epochs
-    epochs = mne.make_fixed_length_epochs(raw, duration=epoch_duration, verbose=False)
-    epochs.load_data()
-
-    return epochs
 
 
 def main() -> None:

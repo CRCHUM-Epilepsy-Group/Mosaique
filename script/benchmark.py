@@ -42,6 +42,7 @@ from mosaique.features import connectivity as conn_feats
 from mosaique.features import univariate as univ
 from mosaique.features.timefrequency import cwt_eeg
 from mosaique.features.connectivity import connectivity_from_coeff as _connectivity_from_coeff
+from mosaique.utils.eeg_helpers import load_and_epoch_edf
 
 
 def connectivity_from_coeff(coefficients_or_tuple: Any, **kwargs: Any) -> Any:
@@ -174,22 +175,6 @@ def _resolve_function(dotted_path: str) -> Callable[..., Any]:
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
-
-def load_and_epoch_edf(
-    edf_path: Path,
-    epoch_duration: float = 5.0,
-    l_freq: float = 1.0,
-    h_freq: float = 50.0,
-    tmax: float = 120.0,
-) -> mne.Epochs:
-    """Load an EDF file and segment it into fixed-length epochs."""
-    raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
-    raw.crop(tmax=min(tmax, raw.times[-1]))
-    raw.filter(l_freq, h_freq, verbose=False)
-    epochs = mne.make_fixed_length_epochs(raw, duration=epoch_duration, verbose=False)
-    epochs.load_data()
-    return epochs
-
 
 def discover_edf_files(max_files: int) -> list[Path]:
     """Return up to *max_files* EDF paths from the test data directory."""
