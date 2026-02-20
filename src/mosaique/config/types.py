@@ -1,18 +1,17 @@
 """Type definitions for feature extraction configuration.
 
 This module defines the protocols that transform and feature functions must
-satisfy, as well as the dataclasses used to carry parsed configuration through
-the extraction pipeline.
+satisfy, as well as the Pydantic models used to carry parsed configuration
+through the extraction pipeline.
 """
 
-from abc import ABC
-from dataclasses import dataclass
-from typing import Any, Generic, Protocol, TypeVar
+from collections.abc import Callable
+from typing import Any, Protocol, Self
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from mosaique.features.timefrequency import FrequencyBand, WaveletCoefficients
-from mosaique.utils.toolkit import deep_list
 
 
 class TransformFunction(Protocol):
@@ -75,55 +74,93 @@ class FeatureFunction(Protocol):
     ) -> float | dict[str, float] | np.ndarray: ...
 
 
-T = TypeVar("T", bound=TransformFunction | FeatureFunction)
+class ExtractionStepConfig(BaseModel):
+    """A single feature or transform entry from user config (unresolved).
+
+    Attributes
+    ----------
+    name : str
+        Human-readable identifier.
+    function : str | None
+        Dotted import path, resolved later by the loader.
+    params : dict[str, Any] | None
+        Raw parameter values from the config.
+    """
+
+    name: str
+    function: str | None = None
+    params: dict[str, Any] | None = None
 
 
-@dataclass
-class ExtractionParams(ABC, Generic[T]):
-    """Single extraction step (transform or feature) with resolved parameters.
+def _normalize_params(params: dict[str, Any] | None) -> dict[str, list[Any]]:
+    """Wrap scalar param values in lists for grid expansion."""
+    if params is None:
+        return {}
+    return {k: v if isinstance(v, list) else [v] for k, v in params.items()}
+
+
+class ExtractionStep(BaseModel):
+    """Resolved step with callable function and grid-ready params.
 
     Attributes
     ----------
     name : str
         Human-readable identifier (appears in the output DataFrame).
-    function : callable
-        The transform or feature function.
-    params : dict
-        Keyword arguments to forward to *function*.
+    function : callable | None
+        The resolved transform or feature function.
+    params : dict[str, list[Any]]
+        All param values normalized to lists for Cartesian grid expansion.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
-    function: T
-    params: dict
+    function: Callable | None = None
+    params: dict[str, list[Any]]
+
+    @property
+    def params_for_grid(self) -> dict[str, list[Any]]:
+        """Alias for backwards compatibility with param grid expansion."""
+        return self.params
 
 
-@dataclass
-class PreGridParams(ExtractionParams):
-    """Extraction parameters before grid expansion.
+class PipelineConfig(BaseModel):
+    """Top-level validated pipeline configuration.
 
-    When a parameter has multiple values (e.g. ``m: [2, 3]``), they are
-    expanded into a Cartesian product of single-valued
-    :class:`ExtractionParams` by :class:`FeatureExtractor`.
+    Attributes
+    ----------
+    features : dict[str, list[ExtractionStepConfig]]
+        Feature functions grouped by transform name.
+    transforms : dict[str, list[ExtractionStepConfig]]
+        Pre-extraction transforms grouped by transform name.
     """
 
-    def __post_init__(self):
-        if self.params is None:
-            self.params_for_grid = {}
-        else:
-            self.params_for_grid: dict[str, list[Any]] = deep_list(self.params)
+    features: dict[str, list[ExtractionStepConfig]]
+    transforms: dict[str, list[ExtractionStepConfig]]
 
+    @model_validator(mode="after")
+    def keys_must_match(self) -> Self:
+        feat_keys = set(self.features.keys())
+        transform_keys = set(self.transforms.keys())
+        if feat_keys != transform_keys:
+            only_features = feat_keys - transform_keys
+            only_transforms = transform_keys - feat_keys
+            parts = []
+            if only_features:
+                parts.append(f"only in features: {only_features}")
+            if only_transforms:
+                parts.append(f"only in transforms: {only_transforms}")
+            raise ValueError(f"features and transforms keys must match; {'; '.join(parts)}")
+        return self
 
-@dataclass
-class TransformParams(ExtractionParams[TransformFunction]):
-    """Resolved (single-valued) parameters for a pre-extraction transform."""
+    @model_validator(mode="after")
+    def transform_keys_in_registry(self) -> Self:
+        from mosaique.extraction.transforms import TRANSFORM_REGISTRY
 
-    function: TransformFunction
-    params: dict[str, Any]
-
-
-@dataclass
-class FeatureParams(ExtractionParams[FeatureFunction]):
-    """Resolved (single-valued) parameters for a feature function."""
-
-    function: FeatureFunction
-    params: dict[str, str | float]
+        unknown = set(self.transforms.keys()) - set(TRANSFORM_REGISTRY.keys())
+        if unknown:
+            raise ValueError(
+                f"unknown transform keys: {unknown}; "
+                f"available: {set(TRANSFORM_REGISTRY.keys())}"
+            )
+        return self

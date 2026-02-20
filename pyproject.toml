@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
     "numpy",
     "polars",
+    "pydantic>=2",
     "PyWavelets",
     "mne",
     "scipy",

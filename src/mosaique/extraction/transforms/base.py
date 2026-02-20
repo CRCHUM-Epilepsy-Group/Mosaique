@@ -10,8 +10,8 @@ from mne import Epochs
 from rich.console import Console
 
 from mosaique.config.types import (
+    ExtractionStep,
     FeatureFunction,
-    TransformParams,
 )
 from mosaique.features.timefrequency import WaveletCoefficients
 
@@ -72,7 +72,7 @@ class PreExtractionTransform(ABC, Generic[T]):
 
     def __init__(
         self,
-        transform: TransformParams,
+        transform: ExtractionStep,
         num_workers: int = 1,
         debug=False,
         console=Console(),
@@ -81,7 +81,7 @@ class PreExtractionTransform(ABC, Generic[T]):
 
         Parameters
         ----------
-        transform : TransformParams
+        transform : ExtractionStep
             Parsed transform configuration (name, function, parameters).
         num_workers : int
             Number of parallel workers.
@@ -94,7 +94,11 @@ class PreExtractionTransform(ABC, Generic[T]):
         self._function = (
             transform.function
         )  # Must conform to TransformFunction protocol
-        self._params = transform.params
+        # Unwrap single-element lists from grid-expanded params
+        self._params = {
+            k: v[0] if isinstance(v, list) and len(v) == 1 else v
+            for k, v in transform.params.items()
+        }
         self._cached_coeffs: WaveletCoefficients = {}
         self.num_workers = num_workers
         self.debug = debug

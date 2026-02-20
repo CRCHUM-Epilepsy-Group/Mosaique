@@ -3,10 +3,15 @@
 from collections.abc import Callable
 from importlib import import_module
 from pathlib import Path
+from typing import Any
 
 import yaml
 
-from mosaique.config.types import PreGridParams
+from mosaique.config.types import (
+    ExtractionStep,
+    PipelineConfig,
+    _normalize_params,
+)
 
 
 class PrettySafeLoader(yaml.SafeLoader):
@@ -23,7 +28,7 @@ def get_loader():
     return loader
 
 
-def parse_config(config_file):
+def parse_config(config_file: str | Path) -> dict[str, Any]:
     """Read a YAML config file."""
     f = Path(config_file)
 
@@ -37,7 +42,7 @@ def parse_config(config_file):
     return config
 
 
-def load_feature_extraction_func(dotpath: str | None) -> Callable:
+def load_feature_extraction_func(dotpath: str | None) -> Callable | None:
     """Load a function from a dotted module path.
 
     Resolution order:
@@ -55,8 +60,8 @@ def load_feature_extraction_func(dotpath: str | None) -> Callable:
 
     Returns
     -------
-    Callable
-        The resolved function object.
+    Callable | None
+        The resolved function object, or ``None`` if *dotpath* is ``None``.
     """
     if dotpath is None:
         return None
@@ -68,51 +73,83 @@ def load_feature_extraction_func(dotpath: str | None) -> Callable:
     return getattr(m, func)
 
 
-def parse_featureextraction_config(config_file):
-    """Parse a feature extraction YAML config file.
+def parse_featureextraction_config(
+    config: str | Path | dict,
+) -> PipelineConfig:
+    """Parse a feature extraction config from a YAML file or dict.
 
-    The YAML file must contain two top-level keys:
+    The input must contain two top-level keys:
 
-    ``frameworks``
-        Pre-extraction transforms keyed by framework name.  Each entry is a
+    ``transforms``
+        Pre-extraction transforms keyed by transform name.  Each entry is a
         list of dicts with ``name``, ``function`` (dotted path or ``null``),
         and ``params``.
 
     ``features``
-        Feature functions keyed by the same framework names.  Each entry is
+        Feature functions keyed by the same transform names.  Each entry is
         a list of dicts with ``name``, ``function`` (dotted path), and
         ``params``.  Parameter values can be lists — they will be expanded
         into a Cartesian grid at extraction time.
 
     Parameters
     ----------
-    config_file : str | Path
-        Path to the YAML configuration file.
+    config : str | Path | dict
+        Path to a YAML configuration file, or a dict with the same structure.
 
     Returns
     -------
-    tuple[dict[str, list[PreGridParams]], dict[str, list[PreGridParams]]]
-        ``(features, frameworks)`` ready to pass to
+    PipelineConfig
+        Validated configuration ready to pass to
         :class:`~mosaique.extraction.extractor.FeatureExtractor`.
 
     Example
     -------
     ::
 
-        features, frameworks = parse_featureextraction_config("config.yaml")
-        extractor = FeatureExtractor(features, frameworks)
+        pipeline = parse_featureextraction_config("config.yaml")
+        extractor = FeatureExtractor(pipeline)
     """
-    conf = parse_config(config_file)
+    if isinstance(config, dict):
+        raw = config
+    else:
+        raw = parse_config(config)
 
-    features = conf["features"]
-    frameworks = conf["frameworks"]
+    pipeline = PipelineConfig.model_validate(raw)
+    return pipeline
 
-    for outer_dict in (features, frameworks):
-        for framework, method_list in outer_dict.items():
-            for i, extraction_params in enumerate(method_list):
-                extraction_params["function"] = load_feature_extraction_func(
-                    extraction_params["function"]
-                )
-                method_list[i] = PreGridParams(**extraction_params)
 
-    return features, frameworks
+def resolve_pipeline(pipeline: PipelineConfig) -> tuple[
+    dict[str, list[ExtractionStep]],
+    dict[str, list[ExtractionStep]],
+]:
+    """Resolve a PipelineConfig into dicts of ExtractionStep with loaded functions.
+
+    Returns
+    -------
+    tuple[dict[str, list[ExtractionStep]], dict[str, list[ExtractionStep]]]
+        ``(features, transforms)`` with resolved callables and normalized params.
+    """
+    features: dict[str, list[ExtractionStep]] = {}
+    transforms: dict[str, list[ExtractionStep]] = {}
+
+    for group_name, step_configs in pipeline.features.items():
+        features[group_name] = [
+            ExtractionStep(
+                name=sc.name,
+                function=load_feature_extraction_func(sc.function),
+                params=_normalize_params(sc.params),
+            )
+            for sc in step_configs
+        ]
+
+    for group_name, step_configs in pipeline.transforms.items():
+        transforms[group_name] = [
+            ExtractionStep(
+                name=sc.name,
+                function=load_feature_extraction_func(sc.function),
+                params=_normalize_params(sc.params),
+            )
+            for sc in step_configs
+        ]
+
+    return features, transforms

@@ -1,21 +1,20 @@
 """Configuration parsing for mosaique feature extraction."""
 
-from mosaique.config.loader import parse_featureextraction_config
+from mosaique.config.loader import parse_featureextraction_config, resolve_pipeline
 from mosaique.config.types import (
-    ExtractionParams,
+    ExtractionStep,
+    ExtractionStepConfig,
     FeatureFunction,
-    FeatureParams,
-    PreGridParams,
+    PipelineConfig,
     TransformFunction,
-    TransformParams,
 )
 
 __all__ = [
     "parse_featureextraction_config",
-    "ExtractionParams",
+    "resolve_pipeline",
+    "ExtractionStep",
+    "ExtractionStepConfig",
     "FeatureFunction",
-    "FeatureParams",
-    "PreGridParams",
+    "PipelineConfig",
     "TransformFunction",
-    "TransformParams",
 ]

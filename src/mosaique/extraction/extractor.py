@@ -15,12 +15,7 @@ from mne import Epochs
 from rich.console import Console
 from rich.progress import Progress
 
-from mosaique.config.types import (
-    ExtractionParams,
-    FeatureParams,
-    PreGridParams,
-    TransformParams,
-)
+from mosaique.config.types import ExtractionStep
 from mosaique.extraction.transforms import TRANSFORM_REGISTRY, PreExtractionTransform
 from mosaique.features.timefrequency import FrequencyBand
 from mosaique.utils.eeg_helpers import get_region_side
@@ -29,7 +24,7 @@ from mosaique.utils.eeg_helpers import get_region_side
 class FeatureExtractor:
     """Orchestrates feature extraction pipelines for MNE Epochs EEG data.
 
-    ``FeatureExtractor`` ties together *frameworks* (pre-extraction transforms
+    ``FeatureExtractor`` ties together *transforms* (pre-extraction transforms
     such as wavelet decompositions or connectivity matrices) with *features*
     (scalar functions applied to each transformed signal). For every
     combination of transform parameters and feature parameters the extractor
@@ -39,13 +34,13 @@ class FeatureExtractor:
 
     Parameters
     ----------
-    features : Mapping[str, list[PreGridParams]]
-        Feature functions grouped by framework name.  Each key must match a
-        key in *frameworks*.  Values are lists of :class:`PreGridParams` –
+    features : Mapping[str, list[ExtractionStep]]
+        Feature functions grouped by transform name.  Each key must match a
+        key in *transforms*.  Values are lists of :class:`ExtractionStep` –
         one per feature function (with optional parameter grids).
-    frameworks : Mapping[str, list[PreGridParams]]
-        Pre-extraction transform definitions grouped by framework name.
-        The framework name must be a key in
+    transforms : Mapping[str, list[ExtractionStep]]
+        Pre-extraction transform definitions grouped by transform name.
+        The transform name must be a key in
         :data:`~mosaique.extraction.transforms.TRANSFORM_REGISTRY`
         (``"tf_decomposition"``, ``"simple"``, ``"connectivity"``, or any
         custom transform you registered).
@@ -65,8 +60,8 @@ class FeatureExtractor:
 
         from mosaique import FeatureExtractor, parse_featureextraction_config
 
-        features, frameworks = parse_featureextraction_config("config.yaml")
-        extractor = FeatureExtractor(features, frameworks, num_workers=4)
+        pipeline = parse_featureextraction_config("config.yaml")
+        extractor = FeatureExtractor(features, transforms, num_workers=4)
 
         # eeg is an mne.Epochs object
         df = extractor.extract_feature(eeg, eeg_id="subject_01")
@@ -74,8 +69,8 @@ class FeatureExtractor:
 
     def __init__(
         self,
-        features: Mapping[str, list[PreGridParams]],
-        frameworks: Mapping[str, list[PreGridParams]],
+        features: Mapping[str, list[ExtractionStep]],
+        transforms: Mapping[str, list[ExtractionStep]],
         log_dir: str | Path | None = None,
         num_workers: int = 1,
         debug=False,
@@ -84,7 +79,7 @@ class FeatureExtractor:
         # Feature extraction params for each feature
         self._features = features
         self._required_transforms = list(features.keys())
-        self._frameworks = frameworks
+        self._transforms = transforms
 
         # List of param names to construct final df
         self._param_names = []
@@ -96,12 +91,12 @@ class FeatureExtractor:
         self._cached_coeffs: dict[FrequencyBand, np.ndarray] = {}
 
         # Initial params with multiple values per params
-        self._curr_features: list[PreGridParams]
-        self._curr_framework: list[PreGridParams]
+        self._curr_features: list[ExtractionStep]
+        self._curr_transform_group: list[ExtractionStep]
 
         # Params with single value, ready for function
-        self._curr_feature: FeatureParams
-        self._curr_transform_params: TransformParams
+        self._curr_feature: ExtractionStep
+        self._curr_transform_params: ExtractionStep
 
         # Final list of extracted features
         self._extracted_features: list[pl.DataFrame] = []
@@ -118,13 +113,13 @@ class FeatureExtractor:
         return self._eeg.get_data()
 
     @property
-    def _feature_param_grid(self) -> list[FeatureParams]:
+    def _feature_param_grid(self) -> list[ExtractionStep]:
         return self._make_param_grid(self._curr_features)
 
     @property
-    def _transform_grid(self) -> list[TransformParams]:
+    def _transform_grid(self) -> list[ExtractionStep]:
         """Make a list of all kwargs given a dict of possible values for kwargs"""
-        return self._make_param_grid(self._curr_framework)
+        return self._make_param_grid(self._curr_transform_group)
 
     def _init_logger(self, eeg_id):
         self.logger = logging.getLogger("rich")
@@ -146,7 +141,7 @@ class FeatureExtractor:
         else:
             self.logger.addHandler(logging.NullHandler())
 
-    def _make_param_grid(self, params: list[PreGridParams]) -> list[ExtractionParams]:
+    def _make_param_grid(self, params: list[ExtractionStep]) -> list[ExtractionStep]:
         """Make a list of all kwargs given a dict of possible values for kwargs"""
         grid = []
         for element in params:
@@ -156,10 +151,10 @@ class FeatureExtractor:
             ]
             for configuration in single_param_grid:
                 grid.append(
-                    ExtractionParams(
+                    ExtractionStep(
                         name=element.name,
                         function=element.function,
-                        params=configuration,
+                        params={k: [v] for k, v in configuration.items()},
                     )
                 )
         return grid
@@ -174,10 +169,12 @@ class FeatureExtractor:
 
         features = []
 
-        # Feature param grid is based on curr_features (for a single framework)
+        # Feature param grid is based on curr_features (for a single transform)
         for self._curr_feature in self._feature_param_grid:
             func = self._curr_feature.function
-            params = self._curr_feature.params
+            # For expanded grid entries, each param value is a single-element list;
+            # unwrap to get the scalar value for the function call.
+            params = {k: v[0] for k, v in self._curr_feature.params.items()}
             name = self._curr_feature.name
             feature_start = time.perf_counter()
 
@@ -251,7 +248,7 @@ class FeatureExtractor:
     def extract_feature(self, eeg: Epochs, eeg_id: str) -> pl.DataFrame:
         """Extract all features from one EEG recording.
 
-        Iterates over every framework / transform-parameter / feature-parameter
+        Iterates over every transform / transform-parameter / feature-parameter
         combination, applies the pre-extraction transform, extracts features,
         and concatenates the results into a single DataFrame.
 
@@ -280,19 +277,19 @@ class FeatureExtractor:
         self.logger.info(log_str)
         self.logger.info("=" * 50)  # Add separator
 
-        # _curr_framework is a list[InitialParams]
-        for framework_name, self._curr_framework in self._frameworks.items():
-            # transform grid is a list of Extraction params based on curr_framework
-            framework_start = time.perf_counter()
-            log_str = f"Starting framework: {framework_name}"
+        # _curr_transform_group is a list[ExtractionStep]
+        for transform_name, self._curr_transform_group in self._transforms.items():
+            # transform grid is a list of ExtractionStep based on curr_transform_group
+            transform_group_start = time.perf_counter()
+            log_str = f"Starting transform: {transform_name}"
             self.logger.info("-" * 50)  # Add separator
             self.logger.info(log_str)
             self.logger.info("-" * 50)
 
             with Progress(console=self.console, transient=True) as progress:
-                n_features = len(self._make_param_grid(self._features[framework_name]))
+                n_features = len(self._make_param_grid(self._features[transform_name]))
                 task_id = progress.add_task(
-                    f"Transforming ({framework_name})...",
+                    f"Transforming ({transform_name})...",
                     total=len(self._transform_grid) * n_features,
                 )
 
@@ -300,7 +297,7 @@ class FeatureExtractor:
                     transform_start = time.perf_counter()
 
                     # 1. Construct a pre-extraction transform pipeline
-                    self._curr_transform = TRANSFORM_REGISTRY[framework_name](
+                    self._curr_transform = TRANSFORM_REGISTRY[transform_name](
                         self._curr_transform_params,
                         num_workers=self.num_workers,
                         debug=self.debug,
@@ -313,14 +310,14 @@ class FeatureExtractor:
                     # 2. Apply pre-extraction transform
                     self._transformed_eeg = self._curr_transform.transform(eeg)
                     transform_time = time.perf_counter() - transform_start
-                    progress.update(task_id, description=f"Extracting ({framework_name})...")
+                    progress.update(task_id, description=f"Extracting ({transform_name})...")
 
                     self.logger.info(
-                        f"Transform {framework_name}: {self._curr_transform_params} completed in {transform_time:.2f}s"
+                        f"Transform {transform_name}: {self._curr_transform_params} completed in {transform_time:.2f}s"
                     )
 
                     # 3. Extract all features for this transform
-                    self._curr_features = self._features[framework_name]
+                    self._curr_features = self._features[transform_name]
                     features = self._extract_for_single_transform(
                         self._transformed_eeg, progress=progress, task_id=task_id
                     )
@@ -333,9 +330,9 @@ class FeatureExtractor:
                     # Transfer cached coeffs back
                     self._cached_coeffs = self._curr_transform._cached_coeffs
 
-                framework_time = (time.perf_counter() - framework_start) / 60
+                transform_group_time = (time.perf_counter() - transform_group_start) / 60
                 self.logger.info(
-                    f"All features for {framework_name} extracted in {(framework_time):.2f}m"
+                    f"All features for {transform_name} extracted in {(transform_group_time):.2f}m"
                 )
 
         final_features = pl.concat(self._extracted_features, how="diagonal_relaxed")
