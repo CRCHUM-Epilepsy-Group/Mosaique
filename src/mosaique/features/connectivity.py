@@ -23,6 +23,61 @@ def _validate_matrix(mat: np.ndarray) -> np.ndarray:
     return mat
 
 
+def _compute_pli(band_data_t: np.ndarray) -> np.ndarray:
+    """Compute Phase Lag Index from transposed band data.
+
+    Parameters
+    ----------
+    band_data_t : np.ndarray
+        Complex wavelet coefficients of shape
+        ``(n_epochs, n_times, n_channels, n_freqs)``.
+
+    Returns
+    -------
+    np.ndarray
+        PLI connectivity matrices of shape ``(n_epochs, n_channels, n_channels)``.
+    """
+    csd = np.matmul(band_data_t, band_data_t.conj().transpose(0, 1, 3, 2))
+    return np.abs(np.mean(np.sign(np.imag(csd)), axis=1))
+
+
+def _compute_correlation(band_data_t: np.ndarray) -> np.ndarray:
+    """Compute Pearson correlation from transposed band data.
+
+    Parameters
+    ----------
+    band_data_t : np.ndarray
+        Complex wavelet coefficients of shape
+        ``(n_epochs, n_times, n_channels, n_freqs)``.
+
+    Returns
+    -------
+    np.ndarray
+        Correlation matrices of shape ``(n_epochs, n_channels, n_channels)``.
+    """
+    n_epochs = band_data_t.shape[0]
+    n_channels = band_data_t.shape[2]
+    band_data_flat = np.abs(band_data_t).reshape(n_epochs, -1, n_channels)
+    return np.array([np.corrcoef(x.T) for x in band_data_flat])
+
+
+_CONNECTIVITY_METHODS = {
+    "pli": _compute_pli,
+    "corr": _compute_correlation,
+}
+
+
+def _compute_connectivity(
+    band_data_t: np.ndarray, method: str
+) -> np.ndarray:
+    """Dispatch connectivity computation to the appropriate method."""
+    if method not in _CONNECTIVITY_METHODS:
+        raise ValueError(
+            f"Method {method!r} not valid; choose from {list(_CONNECTIVITY_METHODS)}"
+        )
+    return _CONNECTIVITY_METHODS[method](band_data_t)
+
+
 def cwt_spectral_connectivity(
     eeg: np.ndarray,
     *,  # arguments are keywords only
@@ -83,24 +138,7 @@ def cwt_spectral_connectivity(
         band_data = cwt_eeg[..., band_mask, :]
         # Reshape to (epochs, times, channels, freqs)
         band_data_t = band_data.transpose(0, 3, 1, 2)
-
-        if method == "pli":
-            # Complex multiplication for cross-spectral density
-            csd = np.matmul(band_data_t, band_data_t.conj().transpose(0, 1, 3, 2))
-            # Final shape of con: (n_epochs, n_channels, n_channels)
-            con = np.abs(np.mean(np.sign(np.imag(csd)), axis=1))
-
-        elif method == "corr":
-            # Get magnitude and flatten to array to (epochs, times * freqs, channels)
-            band_data_flat = np.abs(band_data_t).reshape(n_epochs, -1, n_channels)
-
-            # Calculate correlation for all epochs at once for
-            # final shape of con: (n_epochs, n_channels, n_channels)
-            con = np.array([np.corrcoef(x.T) for x in band_data_flat])
-        else:
-            raise ValueError(f"Method {method} not valid.")
-
-        connectivities[band] = con
+        connectivities[band] = _compute_connectivity(band_data_t, method)
 
     return connectivities
 
@@ -133,29 +171,8 @@ def connectivity_from_coeff(
     connectivities = {}
 
     for band, band_data in coefficients.items():
-        # Reshape to (epochs, times, channels, freqs)
         band_data_t = band_data.transpose(0, 3, 1, 2)
-
-        if method == "pli":
-            # Complex multiplication for cross-spectral density
-            csd = np.matmul(band_data_t, band_data_t.conj().transpose(0, 1, 3, 2))
-            # Final shape of con: (n_epochs, n_channels, n_channels)
-            con = np.abs(np.mean(np.sign(np.imag(csd)), axis=1))
-
-        elif method == "corr":
-            # Get magnitude and flatten array to (epochs, times * freqs, channels)
-            n_epochs = band_data_t.shape[0]
-            band_data_flat = np.abs(band_data_t).reshape(
-                n_epochs, -1, band_data_t.shape[2]
-            )
-
-            # Calculate correlation for all epochs at once
-            con = np.array([np.corrcoef(x.T) for x in band_data_flat])
-
-        else:
-            raise ValueError(f"Method {method} not valid.")
-
-        connectivities[band] = con
+        connectivities[band] = _compute_connectivity(band_data_t, method)
 
     return connectivities
 
