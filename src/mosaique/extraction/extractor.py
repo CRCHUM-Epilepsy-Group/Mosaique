@@ -223,18 +223,29 @@ class FeatureExtractor:
                 continue
         self._param_names = list(param_cols)
 
-        feature_df = feature_df.with_columns(
-            pl.col("channel")
-            .map_elements(
-                get_region_side, skip_nulls=False, return_dtype=pl.String
+        if param_cols:
+            params_expr = (
+                pl.struct(list(param_cols))
+                .map_elements(
+                    lambda x: self._concat_params(x.values()), return_dtype=pl.String
+                )
+                .alias("params")
             )
-            .alias("region_side"),
-            pl.struct(list(param_cols))
-            .map_elements(
-                lambda x: self._concat_params(x.values()), return_dtype=pl.String
+        else:
+            params_expr = pl.lit("").alias("params")
+
+        if "channel" in feature_df.columns:
+            region_side_expr = (
+                pl.col("channel")
+                .map_elements(
+                    get_region_side, skip_nulls=False, return_dtype=pl.String
+                )
+                .alias("region_side")
             )
-            .alias("params"),
-        )
+        else:
+            region_side_expr = pl.lit(None).cast(pl.String).alias("region_side")
+
+        feature_df = feature_df.with_columns(region_side_expr, params_expr)
         return feature_df
 
     def extract_feature(self, eeg: Epochs, eeg_id: str) -> pl.DataFrame:
