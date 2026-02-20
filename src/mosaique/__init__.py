@@ -14,7 +14,12 @@ See :mod:`mosaique.extraction.transforms` for how to add custom transforms,
 and :mod:`mosaique.features` for how to write new feature functions.
 """
 
-from mosaique.config import parse_featureextraction_config, resolve_pipeline
+from mosaique.config import get_config_schema, parse_featureextraction_config, resolve_pipeline
 from mosaique.extraction import FeatureExtractor
 
-__all__ = ["FeatureExtractor", "parse_featureextraction_config", "resolve_pipeline"]
+__all__ = [
+    "FeatureExtractor",
+    "get_config_schema",
+    "parse_featureextraction_config",
+    "resolve_pipeline",
+]
