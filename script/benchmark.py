@@ -562,9 +562,34 @@ def run_benchmark(
     repetitions: int,
     console: Console,
     warmup: bool = True,
+    output_path: Path | None = None,
+    resume: bool = True,
 ) -> pl.DataFrame:
     """Execute all benchmark configurations and return results as a DataFrame."""
     metadata = collect_system_metadata()
+
+    # Load checkpoint and determine already-completed runs
+    existing_df: pl.DataFrame | None = None
+    completed: set[tuple[Any, ...]] = set()
+    if resume and output_path is not None and output_path.exists():
+        try:
+            existing_df = pl.read_parquet(output_path)
+            completed = set(
+                existing_df
+                .select(["backend", "n_files", "feature_group", "n_features", "n_workers", "repetition"])
+                .iter_rows()
+            )
+            console.print(f"[bold]Resuming from checkpoint:[/bold] {len(completed)} run(s) already done\n")
+        except Exception as e:
+            console.print(f"[yellow]Warning: could not load checkpoint ({e}), starting fresh[/yellow]\n")
+
+    def _checkpoint(new_rows: list[dict[str, Any]]) -> None:
+        if output_path is None or not new_rows:
+            return
+        new_df = pl.DataFrame(new_rows)
+        combined = pl.concat([existing_df, new_df], how="diagonal_relaxed") if existing_df is not None else new_df
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        combined.write_parquet(output_path)
 
     # Pre-load all epoch sets (not measured — shared across runs)
     console.print("[bold]Loading EDF files...[/bold]")
@@ -573,9 +598,16 @@ def run_benchmark(
         all_epochs.append(load_and_epoch_edf(f))
     console.print(f"  Loaded {len(all_epochs)} files\n")
 
+    # Count remaining work for the progress bar
     warmup_count = 1 if warmup else 0
-    total_runs = len(configs) * (repetitions + warmup_count)
-    rows: list[dict[str, Any]] = []
+    remaining = sum(
+        len(missing) + (warmup_count if missing else 0)
+        for cfg in configs
+        if (missing := [r for r in range(1, repetitions + 1)
+                        if (cfg.backend, cfg.n_files, cfg.feature_group, cfg.n_features, cfg.n_workers, r) not in completed])
+    )
+
+    new_rows: list[dict[str, Any]] = []
 
     with Progress(
         SpinnerColumn(),
@@ -584,9 +616,16 @@ def run_benchmark(
         MofNCompleteColumn(),
         console=console,
     ) as progress:
-        task = progress.add_task("Benchmarking", total=total_runs)
+        task = progress.add_task("Benchmarking", total=remaining)
 
         for cfg in configs:
+            missing_reps = [
+                r for r in range(1, repetitions + 1)
+                if (cfg.backend, cfg.n_files, cfg.feature_group, cfg.n_features, cfg.n_workers, r) not in completed
+            ]
+            if not missing_reps:
+                continue
+
             epochs_subset = all_epochs[:cfg.n_files]
 
             # Build the run function
@@ -604,8 +643,8 @@ def run_benchmark(
                 measure_run(run_func)
                 progress.advance(task)
 
-            # Measured repetitions
-            for rep in range(1, repetitions + 1):
+            # Measured repetitions (only missing ones)
+            for rep in missing_reps:
                 gc.collect()
                 metrics = measure_run(run_func)
 
@@ -622,10 +661,15 @@ def run_benchmark(
                     "peak_rss_mb": metrics.peak_rss_mb,
                 }
                 row.update(metadata)
-                rows.append(row)
+                new_rows.append(row)
+                _checkpoint(new_rows)
                 progress.advance(task)
 
-    return pl.DataFrame(rows)
+    if existing_df is not None and new_rows:
+        return pl.concat([existing_df, pl.DataFrame(new_rows)], how="diagonal_relaxed")
+    if existing_df is not None:
+        return existing_df
+    return pl.DataFrame(new_rows)
 
 
 # ---------------------------------------------------------------------------
@@ -745,6 +789,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Output Parquet path (default: script/output/benchmark.parquet)",
     )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Ignore any existing checkpoint and start from scratch",
+    )
     return parser.parse_args()
 
 
@@ -759,8 +808,10 @@ def main() -> None:
         args.workers = [1]
         args.repetitions = 1
         args.no_incremental = True
-        args.groups = ["simple"]  # simple group only — no slow CWT
-        warmup = False            # skip warm-up to save time
+        # Test all groups with 1 feature each — exercises every code path
+        # (simple, tf_decomposition, connectivity) while staying fast
+        quick_n_features = 1
+        warmup = False
 
     output_path = args.output or OUTPUT_DIR / "benchmark.parquet"
 
@@ -788,11 +839,13 @@ def main() -> None:
         f"Total runs (incl. warm-up): {len(configs) * (args.repetitions + warmup_count)}\n"
     )
 
-    df = run_benchmark(configs, edf_files, args.repetitions, console, warmup=warmup)
+    df = run_benchmark(
+        configs, edf_files, args.repetitions, console,
+        warmup=warmup,
+        output_path=output_path,
+        resume=not args.fresh,
+    )
 
-    # Save results
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.write_parquet(output_path)
     console.print(f"\nResults saved to [bold]{output_path}[/bold]")
 
     print_summary(df, console)
