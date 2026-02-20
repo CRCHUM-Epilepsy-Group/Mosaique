@@ -6,8 +6,9 @@ from mosaique.config.loader import (
     load_feature_extraction_func,
     parse_config,
     parse_featureextraction_config,
+    resolve_pipeline,
 )
-from mosaique.config.types import PreGridParams
+from mosaique.config.types import ExtractionStep, PipelineConfig
 from mosaique.features.univariate import line_length, sample_entropy
 
 
@@ -28,7 +29,7 @@ class TestParseConfig:
     def test_valid_yaml(self, minimal_config_file):
         config = parse_config(minimal_config_file)
         assert "features" in config
-        assert "frameworks" in config
+        assert "transforms" in config
 
     def test_missing_file(self, tmp_path):
         with pytest.raises(Exception):
@@ -36,26 +37,98 @@ class TestParseConfig:
 
 
 class TestParseFeatureExtractionConfig:
-    def test_returns_features_and_frameworks(self, minimal_config_file):
-        features, frameworks = parse_featureextraction_config(minimal_config_file)
+    def test_returns_pipeline_config(self, minimal_config_file):
+        pipeline = parse_featureextraction_config(minimal_config_file)
+        assert isinstance(pipeline, PipelineConfig)
+        assert "simple" in pipeline.features
+        assert "simple" in pipeline.transforms
+
+    def test_accepts_dict_input(self):
+        raw = {
+            "features": {
+                "simple": [
+                    {"name": "linelength", "function": "univariate.line_length"},
+                ]
+            },
+            "transforms": {
+                "simple": [
+                    {"name": "simple", "function": None, "params": None},
+                ]
+            },
+        }
+        pipeline = parse_featureextraction_config(raw)
+        assert isinstance(pipeline, PipelineConfig)
+        assert "simple" in pipeline.features
+
+    def test_resolve_pipeline(self, minimal_config_file):
+        pipeline = parse_featureextraction_config(minimal_config_file)
+        features, transforms = resolve_pipeline(pipeline)
         assert "simple" in features
-        assert "simple" in frameworks
+        assert "simple" in transforms
 
     def test_functions_are_resolved(self, minimal_config_file):
-        features, frameworks = parse_featureextraction_config(minimal_config_file)
-        # line_length function should be resolved
+        pipeline = parse_featureextraction_config(minimal_config_file)
+        features, transforms = resolve_pipeline(pipeline)
         ll_entry = features["simple"][0]
-        assert isinstance(ll_entry, PreGridParams)
+        assert isinstance(ll_entry, ExtractionStep)
         assert ll_entry.function is line_length
 
     def test_null_function_resolved_to_none(self, minimal_config_file):
-        _, frameworks = parse_featureextraction_config(minimal_config_file)
-        simple_fw = frameworks["simple"][0]
-        assert simple_fw.function is None
+        pipeline = parse_featureextraction_config(minimal_config_file)
+        _, transforms = resolve_pipeline(pipeline)
+        simple_tf = transforms["simple"][0]
+        assert simple_tf.function is None
 
     def test_param_grid_expanded(self, minimal_config_file):
-        features, _ = parse_featureextraction_config(minimal_config_file)
+        pipeline = parse_featureextraction_config(minimal_config_file)
+        features, _ = resolve_pipeline(pipeline)
         sampen = features["simple"][1]
-        # m: [2, 3] should become a list in params_for_grid
         assert sampen.params_for_grid["m"] == [2, 3]
         assert sampen.params_for_grid["r"] == [0.2]
+
+    def test_scalar_params_normalized_to_lists(self):
+        raw = {
+            "features": {
+                "simple": [
+                    {
+                        "name": "sampen",
+                        "function": "univariate.sample_entropy",
+                        "params": {"m": 2, "r": 0.2},
+                    },
+                ]
+            },
+            "transforms": {
+                "simple": [
+                    {"name": "simple", "function": None, "params": None},
+                ]
+            },
+        }
+        pipeline = parse_featureextraction_config(raw)
+        features, _ = resolve_pipeline(pipeline)
+        sampen = features["simple"][0]
+        assert sampen.params["m"] == [2]
+        assert sampen.params["r"] == [0.2]
+
+    def test_keys_mismatch_raises(self):
+        raw = {
+            "features": {
+                "simple": [{"name": "ll", "function": "univariate.line_length"}]
+            },
+            "transforms": {
+                "tf_decomposition": [{"name": "cwt", "function": None}]
+            },
+        }
+        with pytest.raises(Exception, match="keys must match"):
+            parse_featureextraction_config(raw)
+
+    def test_unknown_transform_key_raises(self):
+        raw = {
+            "features": {
+                "nonexistent": [{"name": "ll", "function": "univariate.line_length"}]
+            },
+            "transforms": {
+                "nonexistent": [{"name": "x", "function": None}]
+            },
+        }
+        with pytest.raises(Exception, match="unknown transform keys"):
+            parse_featureextraction_config(raw)
