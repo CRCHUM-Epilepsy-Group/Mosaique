@@ -44,16 +44,20 @@ def connected_threshold(mat: np.ndarray) -> np.ndarray:
     return thresholded_mat
 
 
-def binary_threshold(mat: np.ndarray) -> np.ndarray:
+def binary_threshold(
+    mat: np.ndarray, max_threshold: float = 0.4
+) -> np.ndarray:
     """Binary-threshold a connectivity matrix while keeping it connected.
 
-    Starts at threshold 0.4 and decreases by 0.01 until the resulting
-    binary graph is connected.
+    Uses binary search to find the highest threshold at which the resulting
+    binary graph remains connected.
 
     Parameters
     ----------
     mat : np.ndarray
         Symmetric connectivity matrix of shape ``(n_channels, n_channels)``.
+    max_threshold : float
+        Upper bound for the threshold search (default 0.4).
 
     Returns
     -------
@@ -61,22 +65,17 @@ def binary_threshold(mat: np.ndarray) -> np.ndarray:
         Binary matrix (same shape), with 1 where the original value meets
         the threshold and 0 otherwise.
     """
-    n_channels, _ = mat.shape
-    thresholded_net = np.zeros((n_channels, n_channels))
+    lo, hi = 0.0, max_threshold
+    # Binary search for the highest connected threshold (precision ~0.005)
+    for _ in range(20):
+        mid = (lo + hi) / 2
+        binary_mat = np.where(mat >= mid, 1, 0)
+        if nx.is_connected(nx.from_numpy_array(binary_mat)):
+            lo = mid
+        else:
+            hi = mid
 
-    # take the highest threshold without getting deconnected network for each 19x19 matrix
-    threshold = 0.4
-    thresholded_net = np.where(mat >= threshold, 1, 0)
-    Graph = nx.from_numpy_array(thresholded_net)
-    verify_connected = nx.is_connected(Graph)
-    while verify_connected == False:
-        # when thresholded_net is disconnected, decrease threshold until connected
-        threshold = threshold - 0.01
-        thresholded_net = np.where(mat >= threshold, 1, 0)
-        Graph = nx.from_numpy_array(thresholded_net)
-        verify_connected = nx.is_connected(Graph)
-
-    return thresholded_net
+    return np.where(mat >= lo, 1, 0)
 
 
 def average_clustering(mat: np.ndarray, **kwargs: Any) -> float:
