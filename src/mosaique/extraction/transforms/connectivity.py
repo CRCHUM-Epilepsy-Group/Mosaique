@@ -30,13 +30,25 @@ class ConnectivityTransform(PreExtractionTransform):
     events: list[str]
     ch_names: list[str]
 
+    def _make_cache_tag(self) -> tuple:
+        """Build a hashable tag from the CWT computation parameters."""
+        return (
+            self._params.get("wavelet", "cmor1.5-1.0"),
+            self._params.get("sfreq", 200),
+            self._params.get("n_scales", 100),
+        )
+
     def transform(self, eeg: Epochs) -> dict[FrequencyBand, np.ndarray]:
         eeg_data = eeg.get_data()
         self.sfreq = eeg.info["sfreq"]
 
-        # Filter data
+        tag = self._make_cache_tag()
+        # Reuse cached coefficients only when the computation parameters match
         try:
-            if all(f in self._cached_coeffs for f in self._params["freqs"]):
+            bands_cached = all(
+                f in self._cached_coeffs for f in self._params["freqs"]
+            )
+            if bands_cached and self._cache_tag == tag:
                 coeffs = self._cached_coeffs
             else:
                 coeffs = cwt_eeg(eeg_data, **self._params)
@@ -44,6 +56,7 @@ class ConnectivityTransform(PreExtractionTransform):
             coeffs = cwt_eeg(eeg_data, **self._params)
 
         self._cached_coeffs = coeffs
+        self._cache_tag = tag
 
         con_matrices = self._function(
             coeffs, num_workers=self.num_workers, debug=self.debug, **self._params

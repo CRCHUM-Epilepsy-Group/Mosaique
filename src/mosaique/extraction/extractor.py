@@ -269,6 +269,7 @@ class FeatureExtractor:
 
         self._eeg = eeg
         self._cached_coeffs = {}
+        self._cache_tag: tuple = ()
         self._init_logger(eeg_id)
         total_start = time.perf_counter()
         log_str = (
@@ -304,8 +305,9 @@ class FeatureExtractor:
                         console=self.console,
                     )
                     self._param_names.extend(self._curr_transform._params.keys())
-                    # Transfer cached coeffs to Transform
+                    # Transfer cached coeffs and tag to Transform
                     self._curr_transform._cached_coeffs = self._cached_coeffs
+                    self._curr_transform._cache_tag = self._cache_tag
 
                     # 2. Apply pre-extraction transform
                     self._transformed_eeg = self._curr_transform.transform(eeg)
@@ -327,8 +329,9 @@ class FeatureExtractor:
                     # 5. Append to list of dataframes
                     self._extracted_features.append(self._transformed_df)
 
-                    # Transfer cached coeffs back
+                    # Transfer cached coeffs and tag back
                     self._cached_coeffs = self._curr_transform._cached_coeffs
+                    self._cache_tag = self._curr_transform._cache_tag
 
                 transform_group_time = (time.perf_counter() - transform_group_start) / 60
                 self.logger.info(

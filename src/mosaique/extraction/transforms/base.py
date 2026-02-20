@@ -100,6 +100,9 @@ class PreExtractionTransform(ABC, Generic[T]):
             for k, v in transform.params.items()
         }
         self._cached_coeffs: WaveletCoefficients = {}
+        # Tag identifying the computation parameters used to produce
+        # _cached_coeffs.  Prevents reuse across different wavelet configs.
+        self._cache_tag: tuple = ()
         self.num_workers = num_workers
         self.debug = debug
         self.console = console

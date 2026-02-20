@@ -45,6 +45,11 @@ class TFDecompositionTransform(PreExtractionTransform):
         self.times = self._get_times(eeg)
 
         self._cached_coeffs.update(coeffs)  # type: ignore
+        self._cache_tag = (
+            self._params.get("wavelet", "sym5"),
+            self._params.get("sfreq", self.sfreq),
+            self._params.get("n_scales", 100),
+        )
 
         # Check for complex numbers and keep real part if needed
         # + downsample signal according to band (mimicking WPD)
