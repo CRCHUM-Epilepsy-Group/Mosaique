@@ -52,7 +52,6 @@ def parallelize_over_axis(
         slices,
         num_workers=num_workers,
         debug=debug,
-        chunksize=100,
         n_jobs=len(slices),
         task_name=task_name,
         disable_progress=disable_progress,
@@ -67,7 +66,7 @@ def calculate_over_pool(
     objects,
     num_workers=None,
     debug=False,
-    chunksize=12,
+    chunksize=None,
     console=None,
     n_jobs=None,
     task_name="Working",
@@ -82,6 +81,10 @@ def calculate_over_pool(
         results = []
         if n_jobs is None:
             n_jobs = num_workers
+        if chunksize is None:
+            n = len(objects) if hasattr(objects, "__len__") else (n_jobs or 1)
+            workers = num_workers or 1
+            chunksize = max(1, n // (workers * 4))
         with Progress(
             console=console, transient=True, disable=disable_progress
         ) as progress:
