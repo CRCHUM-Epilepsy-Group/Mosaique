@@ -126,8 +126,7 @@ def average_degree(mat: np.ndarray, **kwargs: Any) -> float:
     """
     mat = _validate_matrix(mat)
     G = nx.from_numpy_array(mat)
-    degree = nx.degree(G)
-    return np.average(degree)
+    return np.mean([d for _, d in nx.degree(G)])
 
 
 def global_efficiency(mat: np.ndarray, **kwargs: Any) -> float:

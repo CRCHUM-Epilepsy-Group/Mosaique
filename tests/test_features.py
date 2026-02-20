@@ -312,3 +312,38 @@ class TestConnectivityEdgeCases:
         except (ValueError, nx.NetworkXError):
             pass  # acceptable — clear error on degenerate graph
 
+
+class TestConnectivityCorrectness:
+    """Ground-truth tests for graph metrics on known topologies."""
+
+    def test_average_degree_complete_graph(self):
+        # Complete graph of n nodes: every node has degree n-1
+        n = 4
+        mat = np.ones((n, n)) - np.eye(n)  # all ones except diagonal
+        result = average_degree(mat)
+        assert result == pytest.approx(n - 1)
+
+    def test_average_clustering_complete_graph(self):
+        # Complete graph: clustering coefficient = 1.0
+        n = 4
+        mat = np.ones((n, n)) - np.eye(n)
+        result = average_clustering(mat)
+        assert result == pytest.approx(1.0)
+
+    def test_global_efficiency_complete_graph(self):
+        # Complete graph: global efficiency = 1.0
+        n = 4
+        mat = np.ones((n, n)) - np.eye(n)
+        result = global_efficiency(mat)
+        assert result == pytest.approx(1.0)
+
+    def test_average_shortest_path_length_chain(self):
+        # 3-node chain (0-1-2): mean path = (1+2+1+2+1+1)/(3*2) = 4/3
+        mat = np.array([
+            [0, 1, 0],
+            [1, 0, 1],
+            [0, 1, 0],
+        ], dtype=float)
+        result = average_shortest_path_length(mat)
+        assert result == pytest.approx(4 / 3)
+
