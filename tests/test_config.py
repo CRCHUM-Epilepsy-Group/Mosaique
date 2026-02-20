@@ -35,6 +35,12 @@ class TestParseConfig:
         with pytest.raises(Exception):
             parse_config(tmp_path / "does_not_exist.yaml")
 
+    def test_malformed_yaml_raises_valueerror(self, tmp_path):
+        bad_file = tmp_path / "bad.yaml"
+        bad_file.write_text("features:\n  - [invalid: yaml: :\n")
+        with pytest.raises(ValueError, match="invalid YAML"):
+            parse_config(bad_file)
+
 
 class TestParseFeatureExtractionConfig:
     def test_returns_pipeline_config(self, minimal_config_file):

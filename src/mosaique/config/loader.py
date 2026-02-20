@@ -29,15 +29,20 @@ def get_loader():
 
 
 def parse_config(config_file: str | Path) -> dict[str, Any]:
-    """Read a YAML config file."""
+    """Read a YAML config file.
+
+    Raises
+    ------
+    ValueError
+        If the file contains invalid YAML.
+    """
     f = Path(config_file)
 
     with open(f, "r") as stream:
         try:
             config = yaml.load(stream, Loader=get_loader())
         except yaml.YAMLError as exc:
-            print(exc)
-            return dict()
+            raise ValueError(f"invalid YAML in {f}: {exc}") from exc
 
     return config
 
