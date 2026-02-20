@@ -1,41 +1,41 @@
+import base64
 import os
-import numpy as np
-import polars as pl
 import pathlib
 import shutil
-from collections.abc import Mapping
+from collections.abc import Callable, Iterable, Mapping
 from functools import partial
 from pathlib import Path
-from typing import Any, Mapping, TypeVar
+from typing import Any, TypeVar
 
+import numpy as np
+import polars as pl
 from pathos.pools import ProcessPool as Pool
+from rich.console import Console
 from rich.progress import Progress
 
-import base64
 
-
-def in_container():
+def in_container() -> bool:
     return "IN_CONTAINER" in os.environ
 
 
-def map_to_volume(path, data_volume):
+def map_to_volume(path: str | Path, data_volume: str | Path) -> Path:
     path = str(path).replace("\\", "/")
-    path = Path(path)
-    data_volume = Path(data_volume)
-    rel_path = path.relative_to(path.parents[2])
-    return data_volume / rel_path
+    path_obj = Path(path)
+    data_volume_obj = Path(data_volume)
+    rel_path = path_obj.relative_to(path_obj.parents[2])
+    return data_volume_obj / rel_path
 
 
 def parallelize_over_axis(
-    func,
-    array,
-    axis=-1,
-    num_workers=1,
-    debug=False,
-    task_name="Working",
-    disable_progress=False,
-    **func_kwargs,
-):
+    func: Callable,
+    array: np.ndarray,
+    axis: int = -1,
+    num_workers: int = 1,
+    debug: bool = False,
+    task_name: str = "Working",
+    disable_progress: bool = False,
+    **func_kwargs: Any,
+) -> np.ndarray:
     """Parallel version of np.apply_along_axis for arrays of any dimension."""
     # Move target axis to last position
     array = np.moveaxis(array, axis, -1)
@@ -62,17 +62,17 @@ def parallelize_over_axis(
 
 
 def calculate_over_pool(
-    func,
-    objects,
-    num_workers=None,
-    debug=False,
-    chunksize=None,
-    console=None,
-    n_jobs=None,
-    task_name="Working",
-    disable_progress=False,
-    **func_kwargs,
-):
+    func: Callable,
+    objects: Iterable,
+    num_workers: int | None = None,
+    debug: bool = False,
+    chunksize: int | None = None,
+    console: Console | None = None,
+    n_jobs: int | None = None,
+    task_name: str = "Working",
+    disable_progress: bool = False,
+    **func_kwargs: Any,
+) -> list:
     if debug:
         results = [func(object, **func_kwargs) for object in objects]
 
@@ -107,12 +107,17 @@ def deep_list(mapping: dict[Any, Any]) -> dict[Any, Any]:
     return updated_mapping
 
 
-def save_as_parquet(by_eeg, dest_path, partition_cols=["feature"]):
+def save_as_parquet(
+    by_eeg: Iterable,
+    dest_path: str | Path,
+    partition_cols: list[str] | None = None,
+) -> None:
+    if partition_cols is None:
+        partition_cols = ["feature"]
     dest_path = pathlib.Path(dest_path)
     shutil.rmtree(dest_path, ignore_errors=True)
     dest_path.mkdir(parents=True, exist_ok=True)
-    entropy_iter = (i for i in by_eeg)
-    for df_eeg in entropy_iter:
+    for df_eeg in by_eeg:
         try:
             df_eeg.to_parquet(
                 dest_path,
@@ -121,13 +126,12 @@ def save_as_parquet(by_eeg, dest_path, partition_cols=["feature"]):
             )
         except AttributeError:
             pass
-    pass
 
 
 T = TypeVar("T", pl.DataFrame, pl.LazyFrame)
 
 
-def convert_to_cat(df: T, var_to_keep: list[str] = None) -> T:
+def convert_to_cat(df: T, var_to_keep: list[str] | None = None) -> T:
     """Convert all columns to categorical except those in var_to_keep."""
     var_to_keep = var_to_keep or []
 
@@ -150,17 +154,16 @@ def encode_ptid(string: str, key: str) -> bytes:
         encoded_c = chr(ord(string[i]) + ord(key_c) % 256)
         encoded_chars.append(encoded_c)
     encoded_string = "".join(encoded_chars)
-    encoded_string = encoded_string.encode("latin")
-    return base64.urlsafe_b64encode(encoded_string).rstrip(b"=")
+    encoded_bytes = encoded_string.encode("latin")
+    return base64.urlsafe_b64encode(encoded_bytes).rstrip(b"=")
 
 
 def decode_ptid(string: bytes, key: str) -> str:
-    string = base64.urlsafe_b64decode(string + b"===")
-    string = string.decode("latin")
+    decoded = base64.urlsafe_b64decode(string + b"===")
+    decoded_str = decoded.decode("latin")
     encoded_chars = []
-    for i in range(len(string)):
+    for i in range(len(decoded_str)):
         key_c = key[i % len(key)]
-        encoded_c = chr((ord(string[i]) - ord(key_c) + 256) % 256)
+        encoded_c = chr((ord(decoded_str[i]) - ord(key_c) + 256) % 256)
         encoded_chars.append(encoded_c)
-    encoded_string = "".join(encoded_chars)
-    return encoded_string
+    return "".join(encoded_chars)
