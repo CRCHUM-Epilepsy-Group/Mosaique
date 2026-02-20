@@ -38,7 +38,7 @@ from rich.table import Table
 
 from mosaique import FeatureExtractor
 from mosaique.config.types import PreGridParams
-from mosaique.features import connectivity as conn_feats
+from mosaique.features import STANDARD_BANDS, TF_BANDS, connectivity as conn_feats
 from mosaique.features import univariate as univ
 from mosaique.features.timefrequency import cwt_eeg
 from mosaique.features.connectivity import connectivity_from_coeff as _connectivity_from_coeff
@@ -102,11 +102,8 @@ FEATURE_GROUPS: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 # Shared constants
 # ---------------------------------------------------------------------------
-BAND_POWER_FREQS: list[tuple[float, float]] = [
-    (1, 4), (4, 8), (8, 13), (13, 30), (30, 50),
-]
-TF_BANDS: list[tuple[float, float]] = [(4, 8), (8, 13), (13, 30), (30, 50)]
-CONN_BANDS: list[tuple[float, float]] = [(4, 8), (8, 13), (13, 30), (30, 50)]
+BAND_POWER_FREQS = STANDARD_BANDS
+CONN_BANDS = TF_BANDS
 N_FREQS_PER_BAND = 20
 N_CYCLES = 7.0
 

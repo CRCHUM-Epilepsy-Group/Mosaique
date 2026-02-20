@@ -23,7 +23,7 @@ import mne.time_frequency
 import numpy as np
 import polars as pl
 
-from mosaique.features import connectivity as conn_feats
+from mosaique.features import STANDARD_BANDS, TF_BANDS, connectivity as conn_feats
 from mosaique.features import univariate as univ
 from mosaique.utils.eeg_helpers import get_region_side, load_and_epoch_edf
 
@@ -61,9 +61,8 @@ OUTPUT_DIR = SCRIPT_DIR / "output"
 # ---------------------------------------------------------------------------
 # Feature configuration (mirrors features_config.yaml)
 # ---------------------------------------------------------------------------
-BAND_POWER_FREQS: list[tuple[float, float]] = [(1, 4), (4, 8), (8, 13), (13, 30), (30, 50)]
-TF_BANDS: list[tuple[float, float]] = [(4, 8), (8, 13), (13, 30), (30, 50)]
-CONN_BANDS: list[tuple[float, float]] = [(4, 8), (8, 13), (13, 30), (30, 50)]
+BAND_POWER_FREQS = STANDARD_BANDS
+CONN_BANDS = TF_BANDS
 
 # Morlet TFR parameters
 N_FREQS_PER_BAND = 20   # log-spaced frequencies sampled within each band

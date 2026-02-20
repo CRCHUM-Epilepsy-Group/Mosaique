@@ -57,4 +57,26 @@ Example YAML entry::
 
 from mosaique.features.timefrequency import FrequencyBand, WaveletCoefficients
 
-__all__ = ["FrequencyBand", "WaveletCoefficients"]
+# Standard EEG frequency bands used across scripts and tests.
+STANDARD_BANDS: list[FrequencyBand] = [
+    (1, 4),
+    (4, 8),
+    (8, 13),
+    (13, 30),
+    (30, 50),
+]
+
+# Frequency bands for time-frequency and connectivity transforms (excludes delta).
+TF_BANDS: list[FrequencyBand] = [
+    (4, 8),
+    (8, 13),
+    (13, 30),
+    (30, 50),
+]
+
+__all__ = [
+    "FrequencyBand",
+    "STANDARD_BANDS",
+    "TF_BANDS",
+    "WaveletCoefficients",
+]
