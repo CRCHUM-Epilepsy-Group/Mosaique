@@ -24,6 +24,15 @@ class TestLoadFeatureExtractionFunc:
         with pytest.raises(Exception):
             load_feature_extraction_func("nonexistent_module.no_func")
 
+    def test_non_callable_raises_typeerror(self):
+        with pytest.raises(TypeError, match="not callable"):
+            load_feature_extraction_func("univariate.np")
+
+    def test_missing_kwargs_warns(self):
+        """Functions without **kwargs emit a warning."""
+        with pytest.warns(UserWarning, match="does not accept \\*\\*kwargs"):
+            load_feature_extraction_func("os.path.exists")
+
 
 class TestParseConfig:
     def test_valid_yaml(self, minimal_config_file):

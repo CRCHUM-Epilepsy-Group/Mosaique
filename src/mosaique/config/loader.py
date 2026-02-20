@@ -1,5 +1,7 @@
 """YAML configuration loading for feature extraction."""
 
+import inspect
+import warnings
 from collections.abc import Callable
 from importlib import import_module
 from pathlib import Path
@@ -70,12 +72,25 @@ def load_feature_extraction_func(dotpath: str | None) -> Callable | None:
     """
     if dotpath is None:
         return None
-    module_, func = dotpath.rsplit(".", maxsplit=1)
+    module_, func_name = dotpath.rsplit(".", maxsplit=1)
     try:
         m = import_module("mosaique.features." + module_)
     except Exception:
         m = import_module(module_)
-    return getattr(m, func)
+    obj = getattr(m, func_name)
+    if not callable(obj):
+        raise TypeError(f"{dotpath!r} resolved to {obj!r}, which is not callable")
+    sig = inspect.signature(obj)
+    has_var_keyword = any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+    )
+    if not has_var_keyword:
+        warnings.warn(
+            f"{dotpath!r} does not accept **kwargs; "
+            f"extra parameters from the config will cause errors",
+            stacklevel=2,
+        )
+    return obj
 
 
 def parse_featureextraction_config(
