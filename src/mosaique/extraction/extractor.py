@@ -48,6 +48,10 @@ class FeatureExtractor:
     num_workers : int
         Number of parallel worker processes.  ``1`` forces single-process
         (debug) mode.
+    batch_size : int
+        Number of epochs to process per batch.  Limits peak memory by
+        running the full transform→feature pipeline on a subset of epochs
+        at a time.  Default 128.
     debug : bool
         When ``True``, disables multiprocessing for easier debugging.
     console : rich.console.Console
@@ -261,6 +265,10 @@ class FeatureExtractor:
         Iterates over every transform / transform-parameter / feature-parameter
         combination, applies the pre-extraction transform, extracts features,
         and concatenates the results into a single DataFrame.
+
+        When the recording contains more epochs than ``batch_size``, the data
+        is processed in batches to keep memory bounded.  Results are
+        concatenated into a single DataFrame.
 
         Parameters
         ----------
