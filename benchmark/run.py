@@ -33,6 +33,9 @@ from mosaique import FeatureExtractor
 from mosaique.config.types import ExtractionStep
 from mosaique.features.univariate import line_length, sample_entropy, spectral_entropy
 from mosaique.features.timefrequency import cwt_eeg
+import mne_connectivity
+from mosaique.features.connectivity import connectivity_from_coeff
+from mosaique.features.graph_metrics import average_clustering, global_efficiency
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -306,16 +309,90 @@ def _mosaique_tf(epochs_list: list[mne.Epochs], n_workers: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# MNE backend: connectivity
+# ---------------------------------------------------------------------------
+def _mne_connectivity(epochs_list: list[mne.Epochs]) -> None:
+    """MNE-native connectivity: spectral_connectivity_epochs + graph metrics."""
+    for epochs in epochs_list:
+        n_epochs = len(epochs)
+
+        for band in TF_BANDS:
+            freqs = _band_freqs(band)
+
+            # Call per-epoch to get epoch-level connectivity
+            for ep_idx in range(n_epochs):
+                single = epochs[ep_idx]
+                con = mne_connectivity.spectral_connectivity_epochs(
+                    single,
+                    method="pli",
+                    mode="cwt_morlet",
+                    cwt_freqs=freqs,
+                    cwt_n_cycles=N_CYCLES,
+                    faverage=True,
+                    verbose=False,
+                )
+                # con.get_data(output="dense") shape: (n_ch, n_ch, 1, n_times)
+                # Average over freq bands and time to get (n_ch, n_ch) matrix
+                pli_mat = con.get_data(output="dense").mean(axis=(2, 3))
+
+                average_clustering(pli_mat)
+                global_efficiency(pli_mat)
+
+
+# ---------------------------------------------------------------------------
+# Mosaique backend: connectivity
+# ---------------------------------------------------------------------------
+def _mosaique_connectivity(epochs_list: list[mne.Epochs], n_workers: int) -> None:
+    features = {
+        "connectivity": [
+            ExtractionStep(
+                name="average_clustering",
+                function=average_clustering,
+                params={},
+            ),
+            ExtractionStep(
+                name="global_efficiency",
+                function=global_efficiency,
+                params={},
+            ),
+        ]
+    }
+    transforms = {
+        "connectivity": [
+            ExtractionStep(
+                name="pli",
+                function=connectivity_from_coeff,
+                params={
+                    "freqs": [TF_BANDS],
+                    "wavelet": ["cmor1.5-1.0"],
+                    "skip_reconstr": [True],
+                },
+            )
+        ]
+    }
+    for epochs in epochs_list:
+        ext = FeatureExtractor(
+            features,
+            transforms,
+            num_workers=n_workers,
+            console=Console(quiet=True),
+        )
+        ext.extract_feature(epochs, eeg_id="bench")
+
+
+# ---------------------------------------------------------------------------
 # Backend dispatchers
 # ---------------------------------------------------------------------------
 _MNE_RUNNERS: dict[str, Callable[[list[mne.Epochs]], None]] = {
     "simple": _mne_simple,
     "tf_decomposition": _mne_tf,
+    "connectivity": _mne_connectivity,
 }
 
 _MOSAIQUE_RUNNERS: dict[str, Callable[[list[mne.Epochs], int], None]] = {
     "simple": _mosaique_simple,
     "tf_decomposition": _mosaique_tf,
+    "connectivity": _mosaique_connectivity,
 }
 
 
