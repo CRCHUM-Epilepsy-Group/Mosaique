@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mne = ["mne"]
+mne = ["mne", "mne-connectivity"]
 
 [dependency-groups]
 dev = [
