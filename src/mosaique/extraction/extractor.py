@@ -4,25 +4,24 @@ import datetime
 import logging
 import time
 from collections.abc import Iterable, Mapping
-from functools import cached_property
 from itertools import product
 from pathlib import Path
 from traceback import format_exc
 
 import numpy as np
 import polars as pl
-from mne import Epochs
 from rich.console import Console
 from rich.progress import Progress
 
 from mosaique.config.types import ExtractionStep
+from mosaique.extraction.eegdata import EegData, EpochsLike
 from mosaique.extraction.transforms import TRANSFORM_REGISTRY, PreExtractionTransform
 from mosaique.features.timefrequency import FrequencyBand
 from mosaique.utils.eeg_helpers import get_region_side
 
 
 class FeatureExtractor:
-    """Orchestrates feature extraction pipelines for MNE Epochs EEG data.
+    """Orchestrates feature extraction pipelines for EEG data.
 
     ``FeatureExtractor`` ties together *transforms* (pre-extraction transforms
     such as wavelet decompositions or connectivity matrices) with *features*
@@ -63,8 +62,16 @@ class FeatureExtractor:
         pipeline = parse_featureextraction_config("config.yaml")
         extractor = FeatureExtractor(features, transforms, num_workers=4)
 
-        # eeg is an mne.Epochs object
-        df = extractor.extract_feature(eeg, eeg_id="subject_01")
+        # Pass an MNE Epochs object or any EpochsLike
+        df = extractor.extract_feature(epochs, eeg_id="subject_01")
+
+        # Or pass a numpy array directly
+        df = extractor.extract_feature(
+            data,           # np.ndarray (n_epochs, n_channels, n_times)
+            eeg_id="sub01",
+            sfreq=200.0,
+            ch_names=["Fp1", "C3"],
+        )
     """
 
     def __init__(
@@ -84,7 +91,6 @@ class FeatureExtractor:
         # List of param names to construct final df
         self._param_names = []
 
-        self._eeg: Epochs
         self._transformed_eeg: np.ndarray
 
         # Cache wavelet coefficients
@@ -107,10 +113,6 @@ class FeatureExtractor:
         if self.num_workers <= 1:
             self.debug = True
         self.console = console
-
-    @cached_property
-    def _eeg_array(self):
-        return self._eeg.get_data()
 
     @property
     def _feature_param_grid(self) -> list[ExtractionStep]:
@@ -245,7 +247,15 @@ class FeatureExtractor:
         feature_df = feature_df.with_columns(region_side_expr, params_expr)
         return feature_df
 
-    def extract_feature(self, eeg: Epochs, eeg_id: str) -> pl.DataFrame:
+    def extract_feature(
+        self,
+        eeg: EpochsLike | np.ndarray,
+        eeg_id: str,
+        sfreq: float | None = None,
+        ch_names: list[str] | None = None,
+        event_labels: list[str] | None = None,
+        timestamps: np.ndarray | None = None,
+    ) -> pl.DataFrame:
         """Extract all features from one EEG recording.
 
         Iterates over every transform / transform-parameter / feature-parameter
@@ -254,10 +264,24 @@ class FeatureExtractor:
 
         Parameters
         ----------
-        eeg : mne.Epochs
-            Epoched EEG data.
+        eeg : EpochsLike or np.ndarray
+            Epoched EEG data.  Either an MNE ``Epochs`` object (or any object
+            matching the :class:`~mosaique.extraction.eegdata.EpochsLike`
+            protocol) or a raw ``numpy`` array of shape
+            ``(n_epochs, n_channels, n_times)``.
         eeg_id : str
             Identifier for the recording (used in logging).
+        sfreq : float, optional
+            Sampling frequency in Hz.  Required when *eeg* is a numpy array.
+        ch_names : list[str], optional
+            Channel names.  Only used when *eeg* is a numpy array.  Defaults
+            to ``["ch_0", "ch_1", ...]``.
+        event_labels : list[str], optional
+            Event label per epoch.  Only used when *eeg* is a numpy array.
+            Defaults to ``["0", "1", ...]``.
+        timestamps : np.ndarray, optional
+            Epoch start times.  Only used when *eeg* is a numpy array.
+            Defaults to ``np.arange(n_epochs, dtype=float)``.
 
         Returns
         -------
@@ -266,14 +290,28 @@ class FeatureExtractor:
             ``channel``, ``value``, ``feature``, ``region_side``, ``params``,
             plus any transform / feature parameter columns.
         """
+        # Normalise input to EegData
+        if isinstance(eeg, np.ndarray):
+            if sfreq is None:
+                raise ValueError(
+                    "sfreq is required when passing a numpy array to extract_feature()"
+                )
+            eeg_data = EegData.from_array(
+                eeg,
+                sfreq=sfreq,
+                ch_names=ch_names,
+                event_labels=event_labels,
+                timestamps=timestamps,
+            )
+        else:
+            eeg_data = EegData.from_epochs(eeg)
 
-        self._eeg = eeg
         self._cached_coeffs = {}
         self._cache_tag: tuple = ()
         self._init_logger(eeg_id)
         total_start = time.perf_counter()
         log_str = (
-            f"Starting extraction for {eeg_id} (number of epochs: {len(eeg.events)})"
+            f"Starting extraction for {eeg_id} (number of epochs: {len(eeg_data.event_labels)})"
         )
         self.logger.info(log_str)
         self.logger.info("=" * 50)  # Add separator
@@ -310,7 +348,7 @@ class FeatureExtractor:
                     self._curr_transform._cache_tag = self._cache_tag
 
                     # 2. Apply pre-extraction transform
-                    self._transformed_eeg = self._curr_transform.transform(eeg)
+                    self._transformed_eeg = self._curr_transform.transform(eeg_data)
                     transform_time = time.perf_counter() - transform_start
                     progress.update(task_id, description=f"Extracting ({transform_name})...")
 
