@@ -243,3 +243,40 @@ class TestBatchSize:
             console=Console(quiet=True),
         )
         assert extractor.batch_size == 64
+
+
+class TestBatchingIntegration:
+    def test_many_epochs_batched(self, simple_features, simple_transforms):
+        """10 epochs with batch_size=3 → 4 batches (3+3+3+1)."""
+        rng = np.random.default_rng(99)
+        data = rng.standard_normal((10, 3, 400)) * 1e-6
+
+        extractor = FeatureExtractor(
+            simple_features,
+            simple_transforms,
+            debug=True,
+            batch_size=3,
+            console=Console(quiet=True),
+        )
+        df = extractor.extract_feature(data, eeg_id="many_epochs", sfreq=200.0)
+
+        # 10 epochs × 3 channels × 3 features (linelength + sampen×2 params) = 90 rows
+        assert len(df) == 90
+        assert df["epoch"].n_unique() == 10
+
+    def test_batch_size_one(self, simple_features, simple_transforms):
+        """Extreme case: batch_size=1, one epoch per batch."""
+        rng = np.random.default_rng(99)
+        data = rng.standard_normal((4, 2, 200)) * 1e-6
+
+        extractor = FeatureExtractor(
+            simple_features,
+            simple_transforms,
+            debug=True,
+            batch_size=1,
+            console=Console(quiet=True),
+        )
+        df = extractor.extract_feature(data, eeg_id="single_batch", sfreq=200.0)
+
+        # 4 epochs × 2 channels × 3 features = 24 rows
+        assert len(df) == 24
