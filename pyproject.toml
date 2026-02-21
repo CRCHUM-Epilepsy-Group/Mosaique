@@ -13,7 +13,6 @@ dependencies = [
     "polars",
     "pydantic>=2",
     "PyWavelets",
-    "mne",
     "scipy",
     "networkx",
     "pathos",
@@ -21,6 +20,9 @@ dependencies = [
     "pyyaml",
     "pytest>=9.0.2",
 ]
+
+[project.optional-dependencies]
+mne = ["mne", "mne-connectivity"]
 
 [dependency-groups]
 dev = [
