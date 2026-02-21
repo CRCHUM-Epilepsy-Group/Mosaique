@@ -28,6 +28,10 @@ import numpy as np
 import polars as pl
 import psutil
 from rich.console import Console
+
+from mosaique import FeatureExtractor
+from mosaique.config.types import ExtractionStep
+from mosaique.features.univariate import line_length, spectral_entropy
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -188,14 +192,61 @@ def build_grid(
 
 
 # ---------------------------------------------------------------------------
-# Backend runners (placeholder — filled in Tasks 3-5)
+# MNE backend: simple
 # ---------------------------------------------------------------------------
+def _mne_simple(epochs_list: list[mne.Epochs]) -> None:
+    """MNE-style simple feature extraction: sequential loops."""
+    for epochs in epochs_list:
+        data = epochs.get_data()
+        sfreq = epochs.info["sfreq"]
+        n_epochs, n_channels, _ = data.shape
+        for i in range(n_epochs):
+            for j in range(n_channels):
+                line_length(data[i, j], sfreq=sfreq)
+                spectral_entropy(data[i, j], sfreq=sfreq)
+
+
+# ---------------------------------------------------------------------------
+# Mosaique backend: simple
+# ---------------------------------------------------------------------------
+def _mosaique_simple(epochs_list: list[mne.Epochs], n_workers: int) -> None:
+    features = {
+        "simple": [
+            ExtractionStep(name="line_length", function=line_length, params={}),
+            ExtractionStep(
+                name="spectral_entropy", function=spectral_entropy, params={}
+            ),
+        ]
+    }
+    transforms = {"simple": [ExtractionStep(name="simple", function=None, params={})]}
+    for epochs in epochs_list:
+        ext = FeatureExtractor(
+            features,
+            transforms,
+            num_workers=n_workers,
+            console=Console(quiet=True),
+        )
+        ext.extract_feature(epochs, eeg_id="bench")
+
+
+# ---------------------------------------------------------------------------
+# Backend dispatchers
+# ---------------------------------------------------------------------------
+_MNE_RUNNERS: dict[str, Callable[[list[mne.Epochs]], None]] = {
+    "simple": _mne_simple,
+}
+
+_MOSAIQUE_RUNNERS: dict[str, Callable[[list[mne.Epochs], int], None]] = {
+    "simple": _mosaique_simple,
+}
+
+
 def run_mne(epochs_list: list[mne.Epochs], group: str) -> None:
-    raise NotImplementedError(f"MNE runner for {group}")
+    _MNE_RUNNERS[group](epochs_list)
 
 
 def run_mosaique(epochs_list: list[mne.Epochs], group: str, n_workers: int) -> None:
-    raise NotImplementedError(f"Mosaique runner for {group}")
+    _MOSAIQUE_RUNNERS[group](epochs_list, n_workers)
 
 
 # ---------------------------------------------------------------------------
