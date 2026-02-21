@@ -310,73 +310,94 @@ class FeatureExtractor:
         self._cache_tag: tuple = ()
         self._init_logger(eeg_id)
         total_start = time.perf_counter()
-        log_str = f"Starting extraction for {eeg_id} (number of epochs: {len(eeg_data.event_labels)})"
+        n_epochs = eeg_data.data.shape[0]
+        log_str = f"Starting extraction for {eeg_id} (number of epochs: {n_epochs})"
         self.logger.info(log_str)
-        self.logger.info("=" * 50)  # Add separator
+        self.logger.info("=" * 50)
 
-        # _curr_transform_group is a list[ExtractionStep]
-        for transform_name, self._curr_transform_group in self._transforms.items():
-            # transform grid is a list of ExtractionStep based on curr_transform_group
-            transform_group_start = time.perf_counter()
-            log_str = f"Starting transform: {transform_name}"
-            self.logger.info("-" * 50)  # Add separator
-            self.logger.info(log_str)
-            self.logger.info("-" * 50)
+        n_batches = (n_epochs + self.batch_size - 1) // self.batch_size
 
-            with Progress(console=self.console, transient=True) as progress:
-                n_features = len(self._make_param_grid(self._features[transform_name]))
-                task_id = progress.add_task(
-                    f"Transforming ({transform_name})...",
-                    total=len(self._transform_grid) * n_features,
-                )
+        for batch_idx in range(n_batches):
+            batch_start = batch_idx * self.batch_size
+            batch_end = min(batch_start + self.batch_size, n_epochs)
+            batch_eeg = eeg_data.slice(batch_start, batch_end)
 
-                for self._curr_transform_params in self._transform_grid:
-                    transform_start = time.perf_counter()
+            self.logger.info(
+                f"Batch {batch_idx + 1}/{n_batches} (epochs {batch_start}-{batch_end - 1})"
+            )
 
-                    # 1. Construct a pre-extraction transform pipeline
-                    self._curr_transform = TRANSFORM_REGISTRY[transform_name](
-                        self._curr_transform_params,
-                        num_workers=self.num_workers,
-                        debug=self.debug,
-                        console=self.console,
+            # _curr_transform_group is a list[ExtractionStep]
+            for transform_name, self._curr_transform_group in self._transforms.items():
+                transform_group_start = time.perf_counter()
+                self.logger.info("-" * 50)
+                self.logger.info(f"Starting transform: {transform_name}")
+                self.logger.info("-" * 50)
+
+                with Progress(console=self.console, transient=True) as progress:
+                    n_features = len(
+                        self._make_param_grid(self._features[transform_name])
                     )
-                    self._param_names.extend(self._curr_transform._params.keys())
-                    # Transfer cached coeffs and tag to Transform
-                    self._curr_transform._cached_coeffs = self._cached_coeffs
-                    self._curr_transform._cache_tag = self._cache_tag
-
-                    # 2. Apply pre-extraction transform
-                    self._transformed_eeg = self._curr_transform.transform(eeg_data)
-                    transform_time = time.perf_counter() - transform_start
-                    progress.update(
-                        task_id, description=f"Extracting ({transform_name})..."
+                    task_id = progress.add_task(
+                        f"[batch {batch_idx + 1}/{n_batches}] Extracting ({transform_name})...",
+                        total=len(self._transform_grid) * n_features,
                     )
 
+                    for self._curr_transform_params in self._transform_grid:
+                        transform_start = time.perf_counter()
+
+                        # 1. Construct a pre-extraction transform pipeline
+                        self._curr_transform = TRANSFORM_REGISTRY[transform_name](
+                            self._curr_transform_params,
+                            num_workers=self.num_workers,
+                            debug=self.debug,
+                            console=self.console,
+                        )
+                        self._param_names.extend(self._curr_transform._params.keys())
+                        # Transfer cached coeffs and tag to Transform
+                        self._curr_transform._cached_coeffs = self._cached_coeffs
+                        self._curr_transform._cache_tag = self._cache_tag
+
+                        # 2. Apply pre-extraction transform
+                        self._transformed_eeg = self._curr_transform.transform(
+                            batch_eeg
+                        )
+                        transform_time = time.perf_counter() - transform_start
+                        progress.update(
+                            task_id,
+                            description=f"[batch {batch_idx + 1}/{n_batches}] Extracting ({transform_name})...",
+                        )
+
+                        self.logger.info(
+                            f"Transform {transform_name}: {self._curr_transform_params} completed in {transform_time:.2f}s"
+                        )
+
+                        # 3. Extract all features for this transform
+                        self._curr_features = self._features[transform_name]
+                        features = self._extract_for_single_transform(
+                            self._transformed_eeg, progress=progress, task_id=task_id
+                        )
+                        # 4. Add hyperparameters to dataframe
+                        self._transformed_df = self._curr_transform.complete_df(
+                            features
+                        )
+
+                        # 5. Append to list of dataframes
+                        self._extracted_features.append(self._transformed_df)
+
+                        # Transfer cached coeffs and tag back
+                        self._cached_coeffs = self._curr_transform._cached_coeffs
+                        self._cache_tag = self._curr_transform._cache_tag
+
+                    transform_group_time = (
+                        time.perf_counter() - transform_group_start
+                    ) / 60
                     self.logger.info(
-                        f"Transform {transform_name}: {self._curr_transform_params} completed in {transform_time:.2f}s"
+                        f"All features for {transform_name} extracted in {(transform_group_time):.2f}m"
                     )
 
-                    # 3. Extract all features for this transform
-                    self._curr_features = self._features[transform_name]
-                    features = self._extract_for_single_transform(
-                        self._transformed_eeg, progress=progress, task_id=task_id
-                    )
-                    # 4. Add hyperparameters to dataframe
-                    self._transformed_df = self._curr_transform.complete_df(features)
-
-                    # 5. Append to list of dataframes
-                    self._extracted_features.append(self._transformed_df)
-
-                    # Transfer cached coeffs and tag back
-                    self._cached_coeffs = self._curr_transform._cached_coeffs
-                    self._cache_tag = self._curr_transform._cache_tag
-
-                transform_group_time = (
-                    time.perf_counter() - transform_group_start
-                ) / 60
-                self.logger.info(
-                    f"All features for {transform_name} extracted in {(transform_group_time):.2f}m"
-                )
+            # Free CWT cache between batches
+            self._cached_coeffs = {}
+            self._cache_tag = ()
 
         final_features = pl.concat(self._extracted_features, how="diagonal_relaxed")
         final_features_cleaned = self._clean_features_df(final_features)
