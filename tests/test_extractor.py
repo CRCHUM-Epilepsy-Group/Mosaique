@@ -1,5 +1,6 @@
 """Regression tests for FeatureExtractor and param grid expansion."""
 
+import numpy as np
 import polars as pl
 import pytest
 from rich.console import Console
@@ -7,6 +8,7 @@ from rich.console import Console
 from mosaique import FeatureExtractor, parse_featureextraction_config
 from mosaique.config.loader import resolve_pipeline
 from mosaique.config.types import ExtractionStep
+from mosaique.extraction.eegdata import EegData
 from mosaique.features.univariate import line_length, sample_entropy
 
 
@@ -38,7 +40,9 @@ def simple_transforms():
 class TestParamGrid:
     def test_grid_expansion(self, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features, simple_transforms, debug=True,
+            simple_features,
+            simple_transforms,
+            debug=True,
             console=Console(quiet=True),
         )
         extractor._curr_features = simple_features["simple"]
@@ -50,7 +54,9 @@ class TestParamGrid:
 
     def test_grid_names(self, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features, simple_transforms, debug=True,
+            simple_features,
+            simple_transforms,
+            debug=True,
             console=Console(quiet=True),
         )
         extractor._curr_features = simple_features["simple"]
@@ -60,7 +66,9 @@ class TestParamGrid:
 
     def test_grid_params(self, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features, simple_transforms, debug=True,
+            simple_features,
+            simple_transforms,
+            debug=True,
             console=Console(quiet=True),
         )
         extractor._curr_features = simple_features["simple"]
@@ -96,7 +104,9 @@ class TestExtractFeature:
         for col in ["epoch", "channel", "value", "feature", "region_side", "params"]:
             assert col in df.columns
 
-    def test_features_present(self, synthetic_epochs, simple_features, simple_transforms):
+    def test_features_present(
+        self, synthetic_epochs, simple_features, simple_transforms
+    ):
         extractor = FeatureExtractor(
             simple_features,
             simple_transforms,
@@ -127,11 +137,15 @@ class TestExtractFeatureFromArray:
             debug=True,
             console=Console(quiet=True),
         )
-        df = extractor.extract_feature(synthetic_array, eeg_id="test_array", sfreq=200.0)
+        df = extractor.extract_feature(
+            synthetic_array, eeg_id="test_array", sfreq=200.0
+        )
         assert isinstance(df, pl.DataFrame)
         assert len(df) > 0
 
-    def test_numpy_with_ch_names(self, synthetic_array, simple_features, simple_transforms):
+    def test_numpy_with_ch_names(
+        self, synthetic_array, simple_features, simple_transforms
+    ):
         ch_names = ["Fp1", "C3", "O1"]
         extractor = FeatureExtractor(
             simple_features,
@@ -144,7 +158,9 @@ class TestExtractFeatureFromArray:
         )
         assert set(df["channel"].unique().to_list()) == set(ch_names)
 
-    def test_numpy_missing_sfreq_raises(self, synthetic_array, simple_features, simple_transforms):
+    def test_numpy_missing_sfreq_raises(
+        self, synthetic_array, simple_features, simple_transforms
+    ):
         extractor = FeatureExtractor(
             simple_features,
             simple_transforms,
@@ -154,15 +170,55 @@ class TestExtractFeatureFromArray:
         with pytest.raises(ValueError, match="sfreq"):
             extractor.extract_feature(synthetic_array, eeg_id="test_no_sfreq")
 
-    def test_numpy_default_channels(self, synthetic_array, simple_features, simple_transforms):
+    def test_numpy_default_channels(
+        self, synthetic_array, simple_features, simple_transforms
+    ):
         extractor = FeatureExtractor(
             simple_features,
             simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
-        df = extractor.extract_feature(synthetic_array, eeg_id="test_defaults", sfreq=200.0)
+        df = extractor.extract_feature(
+            synthetic_array, eeg_id="test_defaults", sfreq=200.0
+        )
         channels = df["channel"].unique().to_list()
         assert "ch_0" in channels
         assert "ch_1" in channels
         assert "ch_2" in channels
+
+
+class TestEegDataSlice:
+    def test_slice_returns_correct_epochs(self):
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal((10, 3, 400))
+        eeg = EegData.from_array(data, sfreq=200.0)
+        sliced = eeg.slice(2, 5)
+
+        assert sliced.data.shape == (3, 3, 400)
+        np.testing.assert_array_equal(sliced.data, data[2:5])
+
+    def test_slice_preserves_metadata(self):
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal((10, 3, 400))
+        ch_names = ["Fp1", "C3", "O1"]
+        eeg = EegData.from_array(data, sfreq=200.0, ch_names=ch_names)
+        sliced = eeg.slice(0, 4)
+
+        assert sliced.sfreq == 200.0
+        assert sliced.ch_names == ch_names
+        assert len(sliced.event_labels) == 4
+        assert len(sliced.timestamps) == 4
+
+    def test_slice_event_labels_and_timestamps(self):
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal((5, 2, 100))
+        labels = ["a", "b", "c", "d", "e"]
+        timestamps = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+        eeg = EegData.from_array(
+            data, sfreq=200.0, event_labels=labels, timestamps=timestamps
+        )
+        sliced = eeg.slice(1, 4)
+
+        assert sliced.event_labels == ["b", "c", "d"]
+        np.testing.assert_array_equal(sliced.timestamps, [1.0, 2.0, 3.0])

@@ -86,7 +86,9 @@ class EegData:
         timestamps = np.array(
             [
                 np.datetime64(
-                    (datetime.timedelta(seconds=t) + eeg_start_time).replace(tzinfo=None)
+                    (datetime.timedelta(seconds=t) + eeg_start_time).replace(
+                        tzinfo=None
+                    )
                 )
                 for t in epoch_start_times
             ]
@@ -142,4 +144,26 @@ class EegData:
             ch_names=ch_names,
             event_labels=event_labels,
             timestamps=timestamps,
+        )
+
+    def slice(self, start: int, end: int) -> "EegData":
+        """Return a new EegData containing epochs [start, end).
+
+        Parameters
+        ----------
+        start : int
+            First epoch index (inclusive).
+        end : int
+            Last epoch index (exclusive).
+
+        Returns
+        -------
+        EegData
+        """
+        return EegData(
+            data=self.data[start:end],
+            sfreq=self.sfreq,
+            ch_names=self.ch_names,
+            event_labels=self.event_labels[start:end],
+            timestamps=self.timestamps[start:end],
         )
