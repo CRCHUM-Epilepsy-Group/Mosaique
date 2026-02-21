@@ -80,6 +80,7 @@ class FeatureExtractor:
         transforms: Mapping[str, list[ExtractionStep]],
         log_dir: str | Path | None = None,
         num_workers: int = 1,
+        batch_size: int = 128,
         debug=False,
         console=Console(),
     ):
@@ -109,6 +110,7 @@ class FeatureExtractor:
 
         self.log_dir = log_dir
         self.num_workers = num_workers
+        self.batch_size = batch_size
         self.debug = debug
         if self.num_workers <= 1:
             self.debug = True
@@ -236,9 +238,7 @@ class FeatureExtractor:
         if "channel" in feature_df.columns:
             region_side_expr = (
                 pl.col("channel")
-                .map_elements(
-                    get_region_side, skip_nulls=False, return_dtype=pl.String
-                )
+                .map_elements(get_region_side, skip_nulls=False, return_dtype=pl.String)
                 .alias("region_side")
             )
         else:
@@ -310,9 +310,7 @@ class FeatureExtractor:
         self._cache_tag: tuple = ()
         self._init_logger(eeg_id)
         total_start = time.perf_counter()
-        log_str = (
-            f"Starting extraction for {eeg_id} (number of epochs: {len(eeg_data.event_labels)})"
-        )
+        log_str = f"Starting extraction for {eeg_id} (number of epochs: {len(eeg_data.event_labels)})"
         self.logger.info(log_str)
         self.logger.info("=" * 50)  # Add separator
 
@@ -350,7 +348,9 @@ class FeatureExtractor:
                     # 2. Apply pre-extraction transform
                     self._transformed_eeg = self._curr_transform.transform(eeg_data)
                     transform_time = time.perf_counter() - transform_start
-                    progress.update(task_id, description=f"Extracting ({transform_name})...")
+                    progress.update(
+                        task_id, description=f"Extracting ({transform_name})..."
+                    )
 
                     self.logger.info(
                         f"Transform {transform_name}: {self._curr_transform_params} completed in {transform_time:.2f}s"
@@ -371,7 +371,9 @@ class FeatureExtractor:
                     self._cached_coeffs = self._curr_transform._cached_coeffs
                     self._cache_tag = self._curr_transform._cache_tag
 
-                transform_group_time = (time.perf_counter() - transform_group_start) / 60
+                transform_group_time = (
+                    time.perf_counter() - transform_group_start
+                ) / 60
                 self.logger.info(
                     f"All features for {transform_name} extracted in {(transform_group_time):.2f}m"
                 )

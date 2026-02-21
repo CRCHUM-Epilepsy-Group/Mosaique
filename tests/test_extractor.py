@@ -222,3 +222,24 @@ class TestEegDataSlice:
 
         assert sliced.event_labels == ["b", "c", "d"]
         np.testing.assert_array_equal(sliced.timestamps, [1.0, 2.0, 3.0])
+
+
+class TestBatchSize:
+    def test_default_batch_size(self, simple_features, simple_transforms):
+        extractor = FeatureExtractor(
+            simple_features,
+            simple_transforms,
+            debug=True,
+            console=Console(quiet=True),
+        )
+        assert extractor.batch_size == 128
+
+    def test_custom_batch_size(self, simple_features, simple_transforms):
+        extractor = FeatureExtractor(
+            simple_features,
+            simple_transforms,
+            debug=True,
+            batch_size=64,
+            console=Console(quiet=True),
+        )
+        assert extractor.batch_size == 64
