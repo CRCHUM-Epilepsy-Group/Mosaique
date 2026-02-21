@@ -117,3 +117,52 @@ class TestExtractFeature:
         df = extractor.extract_feature(synthetic_epochs, eeg_id="test_yaml")
         assert isinstance(df, pl.DataFrame)
         assert len(df) > 0
+
+
+class TestExtractFeatureFromArray:
+    def test_numpy_input(self, synthetic_array, simple_features, simple_transforms):
+        extractor = FeatureExtractor(
+            simple_features,
+            simple_transforms,
+            debug=True,
+            console=Console(quiet=True),
+        )
+        df = extractor.extract_feature(synthetic_array, eeg_id="test_array", sfreq=200.0)
+        assert isinstance(df, pl.DataFrame)
+        assert len(df) > 0
+
+    def test_numpy_with_ch_names(self, synthetic_array, simple_features, simple_transforms):
+        ch_names = ["Fp1", "C3", "O1"]
+        extractor = FeatureExtractor(
+            simple_features,
+            simple_transforms,
+            debug=True,
+            console=Console(quiet=True),
+        )
+        df = extractor.extract_feature(
+            synthetic_array, eeg_id="test_ch", sfreq=200.0, ch_names=ch_names
+        )
+        assert set(df["channel"].unique().to_list()) == set(ch_names)
+
+    def test_numpy_missing_sfreq_raises(self, synthetic_array, simple_features, simple_transforms):
+        extractor = FeatureExtractor(
+            simple_features,
+            simple_transforms,
+            debug=True,
+            console=Console(quiet=True),
+        )
+        with pytest.raises(ValueError, match="sfreq"):
+            extractor.extract_feature(synthetic_array, eeg_id="test_no_sfreq")
+
+    def test_numpy_default_channels(self, synthetic_array, simple_features, simple_transforms):
+        extractor = FeatureExtractor(
+            simple_features,
+            simple_transforms,
+            debug=True,
+            console=Console(quiet=True),
+        )
+        df = extractor.extract_feature(synthetic_array, eeg_id="test_defaults", sfreq=200.0)
+        channels = df["channel"].unique().to_list()
+        assert "ch_0" in channels
+        assert "ch_1" in channels
+        assert "ch_2" in channels

@@ -125,6 +125,13 @@ def synthetic_epochs():
 
 
 @pytest.fixture
+def synthetic_array():
+    """Raw numpy array (n_epochs, n_channels, n_times) for array-input tests."""
+    rng = np.random.default_rng(42)
+    return rng.standard_normal((2, 3, 400)) * 1e-6
+
+
+@pytest.fixture
 def minimal_config_file(tmp_path):
     """Write a minimal YAML config to a temp file and return its path."""
     config = tmp_path / "config.yaml"
