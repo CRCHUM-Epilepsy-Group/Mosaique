@@ -2,11 +2,10 @@
 
 import numpy as np
 import polars as pl
-from mne import Epochs
 
+from mosaique.extraction.eegdata import EegData
 from mosaique.extraction.transforms.base import PreExtractionTransform
 from mosaique.features.timefrequency import FrequencyBand, cwt_eeg
-from mosaique.utils.eeg_helpers import get_event_list
 from mosaique.utils.toolkit import calculate_over_pool
 
 
@@ -38,9 +37,9 @@ class ConnectivityTransform(PreExtractionTransform):
             self._params.get("n_scales", 100),
         )
 
-    def transform(self, eeg: Epochs) -> dict[FrequencyBand, np.ndarray]:
-        eeg_data = eeg.get_data()
-        self.sfreq = eeg.info["sfreq"]
+    def transform(self, eeg: EegData) -> dict[FrequencyBand, np.ndarray]:
+        eeg_data = eeg.data
+        self.sfreq = eeg.sfreq
 
         tag = self._make_cache_tag()
         # Reuse cached coefficients only when the computation parameters match
@@ -64,9 +63,9 @@ class ConnectivityTransform(PreExtractionTransform):
         con_matrices = self._function(
             coeffs, num_workers=self.num_workers, debug=self.debug, **self._params
         )
-        self.events = get_event_list(eeg)
+        self.events = eeg.event_labels
         self.ch_names = eeg.ch_names
-        self.times = self._get_times(eeg)
+        self.times = eeg.timestamps
         return con_matrices
 
     def extract_feature(

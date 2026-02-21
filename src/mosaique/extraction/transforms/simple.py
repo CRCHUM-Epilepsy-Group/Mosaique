@@ -2,10 +2,9 @@
 
 import numpy as np
 import polars as pl
-from mne import Epochs
 
+from mosaique.extraction.eegdata import EegData
 from mosaique.extraction.transforms.base import PreExtractionTransform
-from mosaique.utils.eeg_helpers import get_event_list
 from mosaique.utils.toolkit import parallelize_over_axis
 
 
@@ -25,13 +24,12 @@ class SimpleTransform(PreExtractionTransform):
     events: list[str]
     ch_names: list[str]
 
-    def transform(self, eeg: Epochs) -> np.ndarray:
-        eeg_data = eeg.get_data()
-        self.events = get_event_list(eeg)
+    def transform(self, eeg: EegData) -> np.ndarray:
+        self.events = eeg.event_labels
         self.ch_names = eeg.ch_names
-        self.times = self._get_times(eeg)
-        self.sfreq = eeg.info["sfreq"]
-        return eeg_data
+        self.times = eeg.timestamps
+        self.sfreq = eeg.sfreq
+        return eeg.data
 
     def extract_feature(
         self,

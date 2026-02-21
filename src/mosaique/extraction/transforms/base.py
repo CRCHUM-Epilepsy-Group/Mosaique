@@ -2,17 +2,16 @@
 
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
-import datetime
 
 import numpy as np
 import polars as pl
-from mne import Epochs
 from rich.console import Console
 
 from mosaique.config.types import (
     ExtractionStep,
     FeatureFunction,
 )
+from mosaique.extraction.eegdata import EegData
 from mosaique.features.timefrequency import WaveletCoefficients
 
 T = TypeVar("T")
@@ -116,21 +115,8 @@ class PreExtractionTransform(ABC, Generic[T]):
             df = df.with_columns(pl.lit(v).alias(k))
         return df
 
-    def _get_times(self, eeg: Epochs) -> np.ndarray:
-        epoch_start_times = eeg.events[:, 0] / eeg.info["sfreq"]
-        eeg_start_time = eeg.info["meas_date"]
-        epoch_times = np.array(
-            [
-                np.datetime64(
-                    (datetime.timedelta(seconds=t) + eeg_start_time).replace(tzinfo=None)
-                )
-                for t in epoch_start_times
-            ]
-        )
-        return epoch_times
-
     @abstractmethod
-    def transform(self, eeg: Epochs) -> T:
+    def transform(self, eeg: EegData) -> T:
         """Convert MNE Epochs into the transformed representation.
 
         Parameters

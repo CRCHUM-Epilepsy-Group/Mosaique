@@ -2,11 +2,10 @@
 
 import numpy as np
 import polars as pl
-from mne import Epochs
 
+from mosaique.extraction.eegdata import EegData
 from mosaique.extraction.transforms.base import PreExtractionTransform
 from mosaique.features.timefrequency import FrequencyBand, WaveletCoefficients
-from mosaique.utils.eeg_helpers import get_event_list
 from mosaique.utils.toolkit import parallelize_over_axis
 
 
@@ -30,19 +29,19 @@ class TFDecompositionTransform(PreExtractionTransform):
     events: list[str]
     ch_names: list[str]
 
-    def transform(self, eeg: Epochs) -> dict[FrequencyBand, np.ndarray]:
-        self.sfreq = eeg.info["sfreq"]
+    def transform(self, eeg: EegData) -> dict[FrequencyBand, np.ndarray]:
+        self.sfreq = eeg.sfreq
         coeffs, _ = self._function(  # type: ignore
-            eeg.get_data(),
+            eeg.data,
             sfreq=self.sfreq,
             num_workers=self.num_workers,
             debug=self.debug,
             disable_progress=True,
             **self._params,
         )
-        self.events = get_event_list(eeg)
+        self.events = eeg.event_labels
         self.ch_names = eeg.ch_names
-        self.times = self._get_times(eeg)
+        self.times = eeg.timestamps
 
         self._cached_coeffs.update(coeffs)  # type: ignore
         self._cache_tag = (
