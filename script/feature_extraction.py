@@ -38,6 +38,7 @@ def _report(start: dict, end: dict, label: str) -> None:
         f"RAM start={start['rss_mb']:.1f} MB → end={end['rss_mb']:.1f} MB"
     )
 
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -76,7 +77,6 @@ def main() -> None:
         file_start = _snap()
 
         raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
-        raw.crop(tmax=min(120.0, raw.times[-1]))
         raw.filter(1.0, 50.0, verbose=False)
         epochs = mne.make_fixed_length_epochs(raw, duration=5.0, verbose=False)
         epochs.load_data()

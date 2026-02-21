@@ -6,7 +6,7 @@ mosaique extraction pipeline with direct MNE and numpy calls:
 
   simple        — raw epoch data, features applied per (epoch, channel)
   tf_decomp     — band-limited amplitude via mne.time_frequency.tfr_array_morlet
-  connectivity  — PLI matrices from complex Morlet TFR, then graph features
+  connectivity  — PLI matrices via mne_connectivity, then graph features
 
 Feature functions are imported directly from mosaique.features to ensure
 identical computation — only the orchestration and transforms differ.
@@ -18,10 +18,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 import mne
-import psutil
 import mne.time_frequency
+import mne_connectivity
 import numpy as np
 import polars as pl
+import psutil
 
 from mosaique.features import STANDARD_BANDS, TF_BANDS, connectivity as conn_feats
 from mosaique.features import univariate as univ
@@ -50,6 +51,7 @@ def _report(start: dict, end: dict, label: str) -> None:
         f"RAM start={start['rss_mb']:.1f} MB → end={end['rss_mb']:.1f} MB"
     )
 
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -65,13 +67,14 @@ BAND_POWER_FREQS = STANDARD_BANDS
 CONN_BANDS = TF_BANDS
 
 # Morlet TFR parameters
-N_FREQS_PER_BAND = 20   # log-spaced frequencies sampled within each band
-N_CYCLES = 7.0          # Morlet wavelet cycles (used for both TF and connectivity)
+N_FREQS_PER_BAND = 20  # log-spaced frequencies sampled within each band
+N_CYCLES = 7.0  # Morlet wavelet cycles (used for both TF and connectivity)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def get_epoch_metadata(epochs: mne.Epochs) -> tuple[list[str], np.ndarray]:
     """Return event labels and start timestamps for each epoch."""
@@ -80,12 +83,14 @@ def get_epoch_metadata(epochs: mne.Epochs) -> tuple[list[str], np.ndarray]:
 
     sfreq = epochs.info["sfreq"]
     meas_date = epochs.info["meas_date"]
-    timestamps = np.array([
-        np.datetime64(
-            (datetime.timedelta(seconds=s / sfreq) + meas_date).replace(tzinfo=None)
-        )
-        for s in epochs.events[:, 0]
-    ])
+    timestamps = np.array(
+        [
+            np.datetime64(
+                (datetime.timedelta(seconds=s / sfreq) + meas_date).replace(tzinfo=None)
+            )
+            for s in epochs.events[:, 0]
+        ]
+    )
     return event_labels, timestamps
 
 
@@ -93,7 +98,7 @@ def _build_per_channel_df(
     event_labels: list[str],
     timestamps: np.ndarray,
     ch_names: list[str],
-    values: np.ndarray,          # shape (n_epochs, n_channels)
+    values: np.ndarray,  # shape (n_epochs, n_channels)
     feature_name: str,
     pre_transform: str,
     params: dict,
@@ -104,19 +109,23 @@ def _build_per_channel_df(
     n_epochs = len(event_labels)
     n_ch = len(ch_names)
 
-    df = pl.DataFrame({
-        "epoch": np.repeat(event_labels, n_ch),
-        "timestamp": np.repeat(timestamps, n_ch),
-        "channel": np.tile(ch_names, n_epochs),
-        "value": values.flatten().tolist(),
-    })
-    return _finalize_df(df, feature_name, pre_transform, params, computation_time, freqs_label)
+    df = pl.DataFrame(
+        {
+            "epoch": np.repeat(event_labels, n_ch),
+            "timestamp": np.repeat(timestamps, n_ch),
+            "channel": np.tile(ch_names, n_epochs),
+            "value": values.flatten().tolist(),
+        }
+    )
+    return _finalize_df(
+        df, feature_name, pre_transform, params, computation_time, freqs_label
+    )
 
 
 def _build_per_epoch_df(
     event_labels: list[str],
     timestamps: np.ndarray,
-    values: np.ndarray,          # shape (n_epochs,)
+    values: np.ndarray,  # shape (n_epochs,)
     feature_name: str,
     pre_transform: str,
     params: dict,
@@ -124,12 +133,16 @@ def _build_per_epoch_df(
     freqs_label: str | None = None,
 ) -> pl.DataFrame:
     """Build a long-format DataFrame for per-epoch feature values."""
-    df = pl.DataFrame({
-        "epoch": event_labels,
-        "timestamp": timestamps,
-        "value": values.tolist(),
-    })
-    return _finalize_df(df, feature_name, pre_transform, params, computation_time, freqs_label)
+    df = pl.DataFrame(
+        {
+            "epoch": event_labels,
+            "timestamp": timestamps,
+            "value": values.tolist(),
+        }
+    )
+    return _finalize_df(
+        df, feature_name, pre_transform, params, computation_time, freqs_label
+    )
 
 
 def _finalize_df(
@@ -174,12 +187,13 @@ def _band_freqs(band: tuple[float, float]) -> np.ndarray:
 # Simple features (raw EEG, no transform)
 # ---------------------------------------------------------------------------
 
+
 def extract_simple_features(epochs: mne.Epochs) -> pl.DataFrame:
     """Extract features from raw epoch data using MNE-provided arrays.
 
     Equivalent to the ``simple`` framework in the mosaique pipeline.
     """
-    data = epochs.get_data()          # (n_epochs, n_channels, n_times)
+    data = epochs.get_data()  # (n_epochs, n_channels, n_times)
     sfreq = epochs.info["sfreq"]
     event_labels, timestamps = get_epoch_metadata(epochs)
     ch_names = list(epochs.ch_names)
@@ -191,11 +205,11 @@ def extract_simple_features(epochs: mne.Epochs) -> pl.DataFrame:
     # Scalar features (one value per epoch × channel)
     # ------------------------------------------------------------------
     scalar_specs: list[tuple[str, Callable[..., Any], dict]] = [
-        ("line_length",         univ.line_length,         {}),
-        ("peak_alpha",          univ.peak_alpha,           {}),
-        ("spectral_entropy",    univ.spectral_entropy,     {}),
-        ("permutation_entropy", univ.permutation_entropy,  {"k": 3}),
-        ("hurst_exp",           univ.hurst_exp,            {}),
+        ("line_length", univ.line_length, {}),
+        ("peak_alpha", univ.peak_alpha, {}),
+        ("spectral_entropy", univ.spectral_entropy, {}),
+        ("permutation_entropy", univ.permutation_entropy, {"k": 3}),
+        ("hurst_exp", univ.hurst_exp, {}),
     ]
 
     for feat_name, func, params in scalar_specs:
@@ -207,8 +221,14 @@ def extract_simple_features(epochs: mne.Epochs) -> pl.DataFrame:
         elapsed = time.perf_counter() - t0
 
         df = _build_per_channel_df(
-            event_labels, timestamps, ch_names, values,
-            feat_name, "simple", params, elapsed,
+            event_labels,
+            timestamps,
+            ch_names,
+            values,
+            feat_name,
+            "simple",
+            params,
+            elapsed,
         )
         all_dfs.append(df)
         print(f"    simple/{feat_name}: {elapsed:.2f}s")
@@ -218,7 +238,9 @@ def extract_simple_features(epochs: mne.Epochs) -> pl.DataFrame:
     # Compute once per epoch/channel, then split by band.
     # ------------------------------------------------------------------
     t0 = time.perf_counter()
-    band_values: dict[tuple, np.ndarray] = {b: np.zeros((n_epochs, n_channels)) for b in BAND_POWER_FREQS}
+    band_values: dict[tuple, np.ndarray] = {
+        b: np.zeros((n_epochs, n_channels)) for b in BAND_POWER_FREQS
+    }
     for i in range(n_epochs):
         for j in range(n_channels):
             result = univ.band_power(data[i, j], freqs=BAND_POWER_FREQS, sfreq=sfreq)
@@ -228,8 +250,15 @@ def extract_simple_features(epochs: mne.Epochs) -> pl.DataFrame:
 
     for band, values in band_values.items():
         df = _build_per_channel_df(
-            event_labels, timestamps, ch_names, values,
-            "band_power", "simple", {}, elapsed, freqs_label=str(band),
+            event_labels,
+            timestamps,
+            ch_names,
+            values,
+            "band_power",
+            "simple",
+            {},
+            elapsed,
+            freqs_label=str(band),
         )
         all_dfs.append(df)
     print(f"    simple/band_power: {elapsed:.2f}s")
@@ -241,6 +270,7 @@ def extract_simple_features(epochs: mne.Epochs) -> pl.DataFrame:
 # TF-decomposition features (Morlet TFR → band-limited amplitude)
 # ---------------------------------------------------------------------------
 
+
 def extract_tf_features(epochs: mne.Epochs) -> pl.DataFrame:
     """Extract features from band-limited signals via MNE Morlet TFR.
 
@@ -250,18 +280,18 @@ def extract_tf_features(epochs: mne.Epochs) -> pl.DataFrame:
     magnitude and averaging across the frequency axis, then downsampled
     by the same factor as mosaique's ``simplify_cwt_coeffs``.
     """
-    data = epochs.get_data()          # (n_epochs, n_channels, n_times)
+    data = epochs.get_data()  # (n_epochs, n_channels, n_times)
     sfreq = epochs.info["sfreq"]
     event_labels, timestamps = get_epoch_metadata(epochs)
     ch_names = list(epochs.ch_names)
     n_epochs, n_channels, _ = data.shape
 
     tf_specs: list[tuple[str, Callable[..., Any], dict]] = [
-        ("sample_entropy",      univ.sample_entropy,      {"m": 2, "r": 0.2}),
+        ("sample_entropy", univ.sample_entropy, {"m": 2, "r": 0.2}),
         ("approximate_entropy", univ.approximate_entropy, {"m": 3, "r": 0.2}),
-        ("fuzzy_entropy",       univ.fuzzy_entropy,        {"m": 2, "r": 0.2}),
-        ("line_length",         univ.line_length,          {}),
-        ("corr_dim",            univ.corr_dim,             {"embed_dim": 2}),
+        ("fuzzy_entropy", univ.fuzzy_entropy, {"m": 2, "r": 0.2}),
+        ("line_length", univ.line_length, {}),
+        ("corr_dim", univ.corr_dim, {"embed_dim": 2}),
     ]
 
     all_dfs: list[pl.DataFrame] = []
@@ -273,8 +303,12 @@ def extract_tf_features(epochs: mne.Epochs) -> pl.DataFrame:
         # Complex Morlet TFR: (n_epochs, n_channels, n_freqs, n_times)
         # mne stubs have an imprecise return type; it is always ndarray here.
         tfr: np.ndarray = mne.time_frequency.tfr_array_morlet(  # type: ignore[assignment]
-            data, sfreq, freqs_in_band,
-            n_cycles=N_CYCLES, output="complex", verbose=False,
+            data,
+            sfreq,
+            freqs_in_band,
+            n_cycles=N_CYCLES,
+            output="complex",
+            verbose=False,
         )
 
         # Collapse to band amplitude: average |TFR| across frequency axis
@@ -296,8 +330,15 @@ def extract_tf_features(epochs: mne.Epochs) -> pl.DataFrame:
             elapsed = time.perf_counter() - t0
 
             df = _build_per_channel_df(
-                event_labels, timestamps, ch_names, values,
-                feat_name, "cwt", params, elapsed, freqs_label=band_label,
+                event_labels,
+                timestamps,
+                ch_names,
+                values,
+                feat_name,
+                "cwt",
+                params,
+                elapsed,
+                freqs_label=band_label,
             )
             all_dfs.append(df)
             print(f"    tf/{band_label}/{feat_name}: {elapsed:.2f}s")
@@ -309,24 +350,21 @@ def extract_tf_features(epochs: mne.Epochs) -> pl.DataFrame:
 # Connectivity features (PLI from complex Morlet TFR → graph metrics)
 # ---------------------------------------------------------------------------
 
+
 def extract_connectivity_features(epochs: mne.Epochs) -> pl.DataFrame:
     """Extract graph features from PLI connectivity matrices.
 
-    Replaces mosaique's pywt-based ``cwt_spectral_connectivity`` with
-    ``mne.time_frequency.tfr_array_morlet`` (complex output).  The PLI
-    formula is identical to the mosaique implementation:
-
-        PLI_ij = |mean_t [ sign( Im( sum_f X_i(t,f) · X_j*(t,f) ) ) ]|
+    Uses ``mne_connectivity.spectral_connectivity_epochs`` with CWT Morlet
+    mode to compute per-epoch PLI matrices, then derives graph metrics
+    (clustering, degree, efficiency, path length) from each matrix.
     """
-    data = epochs.get_data()          # (n_epochs, n_channels, n_times)
-    sfreq = epochs.info["sfreq"]
     event_labels, timestamps = get_epoch_metadata(epochs)
-    n_epochs, _, _ = data.shape
+    n_epochs = len(epochs)
 
     graph_specs: list[tuple[str, Callable[..., Any], dict]] = [
-        ("average_clustering",         conn_feats.average_clustering,         {}),
-        ("average_degree",             conn_feats.average_degree,             {}),
-        ("global_efficiency",          conn_feats.global_efficiency,          {}),
+        ("average_clustering", conn_feats.average_clustering, {}),
+        ("average_degree", conn_feats.average_degree, {}),
+        ("global_efficiency", conn_feats.global_efficiency, {}),
         ("average_shortest_path_length", conn_feats.average_shortest_path_length, {}),
     ]
 
@@ -336,31 +374,38 @@ def extract_connectivity_features(epochs: mne.Epochs) -> pl.DataFrame:
         freqs_in_band = _band_freqs(band)
         band_label = str((band[0], band[1]))
 
-        # Complex Morlet TFR: (n_epochs, n_channels, n_freqs, n_times)
-        # mne stubs have an imprecise return type; it is always ndarray here.
-        tfr: np.ndarray = mne.time_frequency.tfr_array_morlet(  # type: ignore[assignment]
-            data, sfreq, freqs_in_band,
-            n_cycles=N_CYCLES, output="complex", verbose=False,
-        )
-
-        # PLI: same formula as mosaique's connectivity_from_coeff
-        # Reshape to (n_epochs, n_times, n_channels, n_freqs) for batched matmul
-        tfr_t = tfr.transpose(0, 3, 1, 2)
-
-        # CSD summed over frequencies: (n_epochs, n_times, n_channels, n_channels)
-        csd = np.matmul(tfr_t, tfr_t.conj().transpose(0, 1, 3, 2))
-
-        # PLI averaged over time: (n_epochs, n_channels, n_channels)
-        pli_matrices = np.abs(np.mean(np.sign(np.imag(csd)), axis=1))
+        # Compute per-epoch PLI matrices using mne_connectivity
+        pli_matrices = np.zeros((n_epochs, len(epochs.ch_names), len(epochs.ch_names)))
+        for ep_idx in range(n_epochs):
+            con = mne_connectivity.spectral_connectivity_epochs(
+                epochs[ep_idx],
+                method="pli",
+                mode="cwt_morlet",
+                cwt_freqs=freqs_in_band,
+                cwt_n_cycles=N_CYCLES,
+                faverage=True,
+                verbose=False,
+            )
+            # con.get_data(output="dense") shape: (n_ch, n_ch, 1, n_times)
+            # Average over freq bands and time to get (n_ch, n_ch) matrix
+            pli_matrices[ep_idx] = con.get_data(output="dense").mean(axis=(2, 3))
 
         for feat_name, func, params in graph_specs:
             t0 = time.perf_counter()
-            values = np.array([func(pli_matrices[ep], **params) for ep in range(n_epochs)])  # type: ignore[operator]
+            values = np.array(
+                [func(pli_matrices[ep], **params) for ep in range(n_epochs)]
+            )  # type: ignore[operator]
             elapsed = time.perf_counter() - t0
 
             df = _build_per_epoch_df(
-                event_labels, timestamps, values,
-                feat_name, "pli", params, elapsed, freqs_label=band_label,
+                event_labels,
+                timestamps,
+                values,
+                feat_name,
+                "pli",
+                params,
+                elapsed,
+                freqs_label=band_label,
             )
             all_dfs.append(df)
             print(f"    conn/{band_label}/{feat_name}: {elapsed:.2f}s")
@@ -371,6 +416,7 @@ def extract_connectivity_features(epochs: mne.Epochs) -> pl.DataFrame:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     edf_files = sorted(DATA_DIR.rglob("*.edf"))[:2]
@@ -388,7 +434,6 @@ def main() -> None:
         file_start = _snap()
 
         raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
-        raw.crop(tmax=min(120.0, raw.times[-1]))
         raw.filter(1.0, 50.0, verbose=False)
         epochs = mne.make_fixed_length_epochs(raw, duration=5.0, verbose=False)
         epochs.load_data()
