@@ -1,11 +1,18 @@
 """Simple (identity) pre-extraction transform."""
 
+from collections.abc import Callable
+
 import numpy as np
 import polars as pl
 
 from mosaique.extraction.eegdata import EegData
 from mosaique.extraction.transforms.base import PreExtractionTransform
-from mosaique.utils.toolkit import parallelize_over_axis
+from mosaique.utils.toolkit import calculate_over_pool
+
+
+def _apply_to_channels(epoch_2d: np.ndarray, feature_func: Callable, **kwargs) -> list:
+    """Apply feature_func to each channel (row) of a (n_channels, n_times) array."""
+    return [feature_func(epoch_2d[i], **kwargs) for i in range(epoch_2d.shape[0])]
 
 
 class SimpleTransform(PreExtractionTransform):
@@ -39,16 +46,22 @@ class SimpleTransform(PreExtractionTransform):
     ) -> pl.DataFrame:
         """Extract features for transforms that return a dictionary"""
 
-        values = parallelize_over_axis(
-            feature_function,
-            transformed_eeg,
-            axis=-1,
+        n_epochs = transformed_eeg.shape[0]
+        epoch_chunks = [transformed_eeg[i] for i in range(n_epochs)]
+
+        results = calculate_over_pool(
+            _apply_to_channels,
+            epoch_chunks,
             num_workers=self.num_workers,
             debug=self.debug,
-            sfreq=self.sfreq,
+            n_jobs=n_epochs,
             disable_progress=True,
-            **feature_params,  # type: ignore
-        ).flatten()
+            feature_func=feature_function,
+            sfreq=self.sfreq,
+            **feature_params,
+        )
+
+        values = [v for epoch_results in results for v in epoch_results]
 
         if any(isinstance(x, dict) for x in values):
             # If function returns dict (e.g.: band power)
@@ -73,7 +86,7 @@ class SimpleTransform(PreExtractionTransform):
                     "epoch": np.repeat(self.events, len(self.ch_names)),
                     "timestamp": np.repeat(self.times, len(self.ch_names)),
                     "channel": np.tile(self.ch_names, len(self.events)),
-                    "value": values.tolist(),
+                    "value": values,
                 }
             )
 
