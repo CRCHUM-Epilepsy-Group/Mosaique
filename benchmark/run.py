@@ -72,13 +72,16 @@ def discover_edf_files(data_dir: Path, max_files: int | None) -> list[Path]:
     return files
 
 
-def load_epochs(edf_files: list[Path], console: Console) -> list[mne.Epochs]:
+def load_epochs(
+    edf_files: list[Path], console: Console, crop_s: float | None = None
+) -> list[mne.Epochs]:
     """Load and preprocess EDF files into MNE Epochs (not measured)."""
     console.print("[bold]Loading EDF files...[/bold]")
     all_epochs: list[mne.Epochs] = []
     for f in edf_files:
         raw = mne.io.read_raw_edf(f, preload=True, verbose=False)
-        raw.crop(tmax=min(120.0, raw.times[-1]))
+        if crop_s is not None:
+            raw.crop(tmax=min(crop_s, raw.times[-1]))
         raw.filter(1.0, 50.0, verbose=False)
         epochs = mne.make_fixed_length_epochs(raw, duration=5.0, verbose=False)
         epochs.load_data()
@@ -537,8 +540,8 @@ def print_summary(df: pl.DataFrame, console: Console) -> None:
         .group_by(["feature_group", "n_files", "n_workers"])
         .agg(pl.col("wall_s").median().alias("mos_wall_s"))
     )
-    best_mos = (
-        mos_medians.sort("mos_wall_s").group_by(["feature_group", "n_files"]).first()
+    best_mos = mos_medians.sort("mos_wall_s").unique(
+        subset=["feature_group", "n_files"], keep="first"
     )
     combined = (
         best_mos.join(mne_medians, on=["feature_group", "n_files"])
@@ -620,7 +623,8 @@ def main() -> None:
     edf_files = discover_edf_files(args.data_dir, args.max_files)
     console.print(f"Found {len(edf_files)} EDF file(s)\n")
 
-    all_epochs = load_epochs(edf_files, console)
+    crop_s = 120.0 if args.quick else None
+    all_epochs = load_epochs(edf_files, console, crop_s=crop_s)
     file_counts = build_file_counts(len(all_epochs))
     configs = build_grid(args.groups, file_counts, args.workers)
 

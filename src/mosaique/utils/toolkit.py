@@ -7,11 +7,15 @@ from functools import partial
 from pathlib import Path
 from typing import Any, TypeVar
 
+import logging
+
 import numpy as np
 import polars as pl
 from pathos.pools import ProcessPool as Pool
 from rich.console import Console
 from rich.progress import Progress
+
+logger = logging.getLogger(__name__)
 
 
 def in_container() -> bool:
@@ -61,6 +65,27 @@ def parallelize_over_axis(
     return np.array(results).reshape(orig_shape[:-1] + (-1,))
 
 
+class _WorkerError:
+    """Sentinel returned by workers that encountered an exception."""
+
+    __slots__ = ("error", "tb")
+
+    def __init__(self, error: str, tb: str):
+        self.error = error
+        self.tb = tb
+
+
+def _safe_apply(args):
+    """Wrapper that catches worker exceptions and returns them as sentinels."""
+    func, item = args
+    try:
+        return func(item)
+    except Exception as e:
+        import traceback
+
+        return _WorkerError(str(e), traceback.format_exc())
+
+
 def calculate_over_pool(
     func: Callable,
     objects: Iterable,
@@ -78,11 +103,12 @@ def calculate_over_pool(
 
     else:
         func_part = partial(func, **func_kwargs)
+        safe_items = [(func_part, obj) for obj in objects]
         results = []
         if n_jobs is None:
             n_jobs = num_workers
         if chunksize is None:
-            n = len(objects) if hasattr(objects, "__len__") else (n_jobs or 1)
+            n = len(safe_items)
             workers = num_workers or 1
             chunksize = max(1, n // (workers * 4))
         with Progress(
@@ -90,10 +116,21 @@ def calculate_over_pool(
         ) as progress:
             progress_string = f"{task_name}..."
             task_id = progress.add_task(progress_string, total=n_jobs)
-            with Pool(num_workers, maxtasksperchild=4) as pool:
-                for result in pool.imap(func_part, objects, chunksize=chunksize):
+            with Pool(num_workers) as pool:
+                for result in pool.imap(_safe_apply, safe_items, chunksize=chunksize):
                     results.append(result)
                     progress.advance(task_id)
+
+        # Check for worker errors after all tasks complete
+        errors = [r for r in results if isinstance(r, _WorkerError)]
+        if errors:
+            logger.error(
+                "Worker errors during parallel execution:\n%s",
+                "\n---\n".join(e.tb for e in errors),
+            )
+            raise RuntimeError(
+                f"{len(errors)} worker(s) failed. First error: {errors[0].error}"
+            )
     return results
 
 

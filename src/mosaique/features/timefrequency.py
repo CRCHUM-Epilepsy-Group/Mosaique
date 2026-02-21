@@ -279,13 +279,18 @@ def cwt_eeg(
         band: np.zeros((n_epochs,) + first_result[band].shape, dtype=dtype)
         for band in freqs
     }
-    reconstr = np.zeros(shape=(eeg.shape + (len(freqs),)))
+    reconstr = (
+        np.zeros(shape=(eeg.shape + (len(freqs),)))
+        if not skip_reconstr
+        else np.empty(0)
+    )
 
-    # Fill pre-allocated arrays
+    # Fill pre-allocated arrays, freeing each epoch's results immediately
     for epoch_idx, epoch_results in enumerate(results):
         for i, band in enumerate(freqs):
             coeff[band][epoch_idx] = epoch_results[band]
             if not skip_reconstr:
                 reconstr[epoch_idx, ..., i] = np.abs(epoch_results[band]).mean(axis=1)
+        results[epoch_idx] = None  # free memory
 
-    return coeff, reconstr.swapaxes(-1, -2)
+    return coeff, reconstr.swapaxes(-1, -2) if reconstr.ndim > 1 else reconstr

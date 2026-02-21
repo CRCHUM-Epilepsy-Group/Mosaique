@@ -47,9 +47,7 @@ class ConnectivityTransform(PreExtractionTransform):
         # "method" conflicts: cwt_eeg expects "fft"/"conv", connectivity uses "pli"/"corr".
         cwt_params = {k: v for k, v in self._params.items() if k != "method"}
         try:
-            bands_cached = all(
-                f in self._cached_coeffs for f in self._params["freqs"]
-            )
+            bands_cached = all(f in self._cached_coeffs for f in self._params["freqs"])
             if bands_cached and self._cache_tag == tag:
                 coeffs = self._cached_coeffs
             else:
@@ -104,9 +102,7 @@ class ConnectivityTransform(PreExtractionTransform):
                 con_mat_list,
                 num_workers=self.num_workers,
                 debug=self.debug,
-                chunksize=8,
                 disable_progress=True,
-                **feature_params,
             )
         )
         match values.ndim:
