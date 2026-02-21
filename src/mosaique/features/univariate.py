@@ -12,10 +12,10 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
-from scipy.signal import periodogram
-from scipy.spatial.distance import pdist
-from mne.time_frequency import psd_array_multitaper
 from scipy.integrate import simpson
+from scipy.signal import periodogram
+from scipy.signal.windows import dpss
+from scipy.spatial.distance import pdist
 
 from mosaique.features.timefrequency import FrequencyBand
 
@@ -150,6 +150,46 @@ def rescaled_range(x: np.ndarray) -> float:
         return 0
 
     return R / S
+
+
+def _multitaper_psd(
+    x: np.ndarray, sfreq: float, bandwidth: float = 4.0
+) -> tuple[np.ndarray, np.ndarray]:
+    """Estimate PSD via DPSS multitaper method.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        1-D input signal.
+    sfreq : float
+        Sampling frequency in Hz.
+    bandwidth : float
+        Half-bandwidth in Hz (default 4.0).
+
+    Returns
+    -------
+    psd : np.ndarray
+        One-sided power spectral density, length ``n // 2 + 1``.
+    freqs : np.ndarray
+        Frequency bins in Hz.
+    """
+    n = len(x)
+    nw = max(bandwidth * n / sfreq, 1.0)  # time-half-bandwidth product
+    n_tapers = max(1, int(2 * nw) - 1)
+
+    tapers, ratios = dpss(n, nw, Kmax=n_tapers, return_ratios=True)
+    fft_vals = np.fft.rfft(tapers * x[np.newaxis, :], axis=-1)
+    psd = (np.abs(fft_vals) ** 2 * ratios[:, np.newaxis]).sum(axis=0) / ratios.sum()
+
+    # One-sided scaling: double all bins except DC and (if n is even) Nyquist
+    if n % 2 == 0:
+        psd[1:-1] *= 2
+    else:
+        psd[1:] *= 2
+
+    psd /= n  # length normalisation (matches MNE "length" convention)
+    freqs = np.fft.rfftfreq(n, d=1.0 / sfreq)
+    return psd, freqs
 
 
 ####################################################################
@@ -452,7 +492,7 @@ def peak_alpha(x: np.ndarray, sfreq: float = 200, **kwargs: Any) -> float:
         Peak alpha frequency in Hz.
     """
     x = _validate_signal(x)
-    psd, freqs = psd_array_multitaper(x, sfreq, normalization="length", verbose=False)  # type: ignore
+    psd, freqs = _multitaper_psd(x, sfreq)
     alpha_band = np.where((freqs >= 8) & (freqs <= 13))[0]
     peak_alpha_ind = np.argmax(psd[alpha_band])
     peak_alpha = freqs[alpha_band][peak_alpha_ind]
@@ -538,14 +578,7 @@ def band_power(x: np.ndarray, freqs: list[FrequencyBand], sfreq: float = 200, **
     """
     x = _validate_signal(x)
     # Calculate PSD
-    psd, freq_bins = psd_array_multitaper(
-        x,
-        sfreq,
-        low_bias=False,
-        n_jobs=1,
-        normalization="length",
-        verbose=False,
-    )
+    psd, freq_bins = _multitaper_psd(x, sfreq)
 
     # Find indices for each band
     def get_band_indices(freq_bins, band):
