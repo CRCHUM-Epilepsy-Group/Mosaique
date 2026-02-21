@@ -1,8 +1,17 @@
 # Mosaïque
 
+
+**Mosaïque** is a configuration-driven, parallel EEG feature extraction library. Features are extracted into a Polars DataFrame in long format.
+
+The goals of this library are:
+- Efficient extraction of large feature sets from EEG databases
+- Simple interface: Features and parameters are defined in a configuration file
+- Contains a large set of predefined EEG features
+- Allows for user-defined features and transforms
+
 ## Quick start
 
-### 1. Define a pipeline config
+### 1. Define a feature config
 
 ```yaml
 # config.yaml
