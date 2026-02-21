@@ -15,6 +15,14 @@ This pipeline was used in the following papers:
 
 ## Quick start
 
+### Installation (requires uv)
+
+After cloning this repository locally, run:
+
+``` bash
+uv sync
+```
+
 ### 1. Define a feature config
 
 ```yaml
