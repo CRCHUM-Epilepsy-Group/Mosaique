@@ -31,7 +31,8 @@ from rich.console import Console
 
 from mosaique import FeatureExtractor
 from mosaique.config.types import ExtractionStep
-from mosaique.features.univariate import line_length, spectral_entropy
+from mosaique.features.univariate import line_length, sample_entropy, spectral_entropy
+from mosaique.features.timefrequency import cwt_eeg
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -230,14 +231,91 @@ def _mosaique_simple(epochs_list: list[mne.Epochs], n_workers: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# MNE backend: TF decomposition
+# ---------------------------------------------------------------------------
+def _band_freqs(band: tuple[float, float]) -> np.ndarray:
+    """Log-spaced frequencies within a band for MNE Morlet."""
+    return np.logspace(np.log10(band[0]), np.log10(band[1]), N_FREQS_PER_BAND)
+
+
+def _mne_tf(epochs_list: list[mne.Epochs]) -> None:
+    """MNE-style TF feature extraction using tfr_array_morlet."""
+    for epochs in epochs_list:
+        data = epochs.get_data()
+        sfreq = epochs.info["sfreq"]
+        n_epochs, n_channels, _ = data.shape
+
+        for band in TF_BANDS:
+            freqs = _band_freqs(band)
+            tfr: np.ndarray = mne.time_frequency.tfr_array_morlet(
+                data,
+                sfreq,
+                freqs,
+                n_cycles=N_CYCLES,
+                output="complex",
+                verbose=False,
+            )
+            amplitude = np.abs(tfr).mean(axis=2)  # avg over freqs
+
+            level = int(np.floor(np.log2(sfreq / (2 * band[1]))))
+            ds = max(1, 2 * level)
+            if ds > 1:
+                amplitude = amplitude[..., ::ds]
+
+            for i in range(n_epochs):
+                for j in range(n_channels):
+                    sample_entropy(amplitude[i, j], sfreq=sfreq, m=2, r=0.2)
+                    line_length(amplitude[i, j], sfreq=sfreq)
+
+
+# ---------------------------------------------------------------------------
+# Mosaique backend: TF decomposition
+# ---------------------------------------------------------------------------
+def _mosaique_tf(epochs_list: list[mne.Epochs], n_workers: int) -> None:
+    features = {
+        "tf_decomposition": [
+            ExtractionStep(
+                name="sample_entropy",
+                function=sample_entropy,
+                params={"m": [2], "r": [0.2]},
+            ),
+            ExtractionStep(name="line_length", function=line_length, params={}),
+        ]
+    }
+    transforms = {
+        "tf_decomposition": [
+            ExtractionStep(
+                name="cwt",
+                function=cwt_eeg,
+                params={
+                    "freqs": [TF_BANDS],
+                    "skip_reconstr": [True],
+                    "skip_complex": [True],
+                },
+            )
+        ]
+    }
+    for epochs in epochs_list:
+        ext = FeatureExtractor(
+            features,
+            transforms,
+            num_workers=n_workers,
+            console=Console(quiet=True),
+        )
+        ext.extract_feature(epochs, eeg_id="bench")
+
+
+# ---------------------------------------------------------------------------
 # Backend dispatchers
 # ---------------------------------------------------------------------------
 _MNE_RUNNERS: dict[str, Callable[[list[mne.Epochs]], None]] = {
     "simple": _mne_simple,
+    "tf_decomposition": _mne_tf,
 }
 
 _MOSAIQUE_RUNNERS: dict[str, Callable[[list[mne.Epochs], int], None]] = {
     "simple": _mosaique_simple,
+    "tf_decomposition": _mosaique_tf,
 }
 
 
