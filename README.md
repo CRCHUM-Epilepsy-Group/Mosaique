@@ -9,6 +9,10 @@ The goals of this library are:
 - Contains a large set of predefined EEG features
 - Allows for user-defined features and transforms
 
+This pipeline was used in the following papers:
+- [Improving diagnostic accuracy of routine EEG for epilepsy using deep learning](https://academic.oup.com/braincomms/advance-article/doi/10.1093/braincomms/fcaf319/8240832?utm_source=advanceaccess&utm_campaign=braincomms&utm_medium=email)
+- [Development and validation of a deep survival model to predict time to seizure from routine electroencephalography](https://onlinelibrary.wiley.com/doi/10.1002/epi.70101?af=R)
+
 ## Quick start
 
 ### 1. Define a feature config
@@ -85,3 +89,4 @@ Options:
 - `--quick` — fast smoke test (1 file, 1 worker, no warmup)
 
 Results are saved to `benchmark/output/benchmark.parquet` and resumable across runs.
+
