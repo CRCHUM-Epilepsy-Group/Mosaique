@@ -576,7 +576,6 @@ name = "mosaique"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "mne" },
     { name = "networkx" },
     { name = "numpy" },
     { name = "pathos" },
@@ -589,6 +588,11 @@ dependencies = [
     { name = "scipy" },
 ]
 
+[package.optional-dependencies]
+mne = [
+    { name = "mne" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "psutil" },
@@ -596,7 +600,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mne" },
+    { name = "mne", marker = "extra == 'mne'" },
     { name = "networkx" },
     { name = "numpy" },
     { name = "pathos" },
@@ -608,6 +612,7 @@ requires-dist = [
     { name = "rich" },
     { name = "scipy" },
 ]
+provides-extras = ["mne"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "psutil" }]
