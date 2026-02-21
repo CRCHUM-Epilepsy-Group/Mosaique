@@ -25,7 +25,7 @@ import polars as pl
 
 from mosaique.features import STANDARD_BANDS, TF_BANDS, connectivity as conn_feats
 from mosaique.features import univariate as univ
-from mosaique.utils.eeg_helpers import get_region_side, load_and_epoch_edf
+from mosaique.utils.eeg_helpers import get_region_side
 
 _PROC = psutil.Process()
 
@@ -387,7 +387,11 @@ def main() -> None:
         print(f"Processing: {edf_path.name}")
         file_start = _snap()
 
-        epochs = load_and_epoch_edf(edf_path)
+        raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
+        raw.crop(tmax=min(120.0, raw.times[-1]))
+        raw.filter(1.0, 50.0, verbose=False)
+        epochs = mne.make_fixed_length_epochs(raw, duration=5.0, verbose=False)
+        epochs.load_data()
         print(
             f"  {len(epochs)} epochs, {len(epochs.ch_names)} channels, "
             f"sfreq={epochs.info['sfreq']} Hz"

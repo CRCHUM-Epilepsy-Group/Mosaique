@@ -9,11 +9,11 @@ windows, runs the full feature extraction pipeline configured in
 import time
 from pathlib import Path
 
+import mne
 import polars as pl
 import psutil
 
 from mosaique import FeatureExtractor, parse_featureextraction_config, resolve_pipeline
-from mosaique.utils.eeg_helpers import load_and_epoch_edf
 
 _PROC = psutil.Process()
 
@@ -75,7 +75,11 @@ def main() -> None:
         print(f"Processing: {edf_path.name}")
         file_start = _snap()
 
-        epochs = load_and_epoch_edf(edf_path)
+        raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
+        raw.crop(tmax=min(120.0, raw.times[-1]))
+        raw.filter(1.0, 50.0, verbose=False)
+        epochs = mne.make_fixed_length_epochs(raw, duration=5.0, verbose=False)
+        epochs.load_data()
         print(
             f"  {len(epochs)} epochs, {len(epochs.ch_names)} channels, "
             f"sfreq={epochs.info['sfreq']} Hz"

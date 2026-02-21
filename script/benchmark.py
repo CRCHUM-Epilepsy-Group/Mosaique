@@ -42,7 +42,6 @@ from mosaique.features import STANDARD_BANDS, TF_BANDS, connectivity as conn_fea
 from mosaique.features import univariate as univ
 from mosaique.features.timefrequency import cwt_eeg
 from mosaique.features.connectivity import connectivity_from_coeff as _connectivity_from_coeff
-from mosaique.utils.eeg_helpers import load_and_epoch_edf
 
 
 def connectivity_from_coeff(coefficients_or_tuple: Any, **kwargs: Any) -> Any:
@@ -577,7 +576,12 @@ def run_benchmark(
     console.print("[bold]Loading EDF files...[/bold]")
     all_epochs: list[mne.Epochs] = []
     for f in edf_files:
-        all_epochs.append(load_and_epoch_edf(f))
+        raw = mne.io.read_raw_edf(f, preload=True, verbose=False)
+        raw.crop(tmax=min(120.0, raw.times[-1]))
+        raw.filter(1.0, 50.0, verbose=False)
+        epochs = mne.make_fixed_length_epochs(raw, duration=5.0, verbose=False)
+        epochs.load_data()
+        all_epochs.append(epochs)
     console.print(f"  Loaded {len(all_epochs)} files\n")
 
     # Count remaining work for the progress bar
