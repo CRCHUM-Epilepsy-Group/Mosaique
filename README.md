@@ -15,12 +15,18 @@ This pipeline was used in the following papers:
 
 ## Quick start
 
-### Installation (requires uv)
+### Installation
 
-After cloning this repository locally, run:
+To install the package with uv:
 
 ``` bash
-uv sync
+uv add git+https://github.com/CRCHUM-Epilepsy-Group/Mosaique.git
+```
+
+For Pip: 
+
+``` bash
+pip install git+https://github.com/CRCHUM-Epilepsy-Group/Mosaique.git
 ```
 
 ### 1. Define a feature config
