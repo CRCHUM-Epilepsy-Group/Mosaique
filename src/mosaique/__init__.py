@@ -1,14 +1,17 @@
 """mosaique - Parallel CPU-based EEG feature extraction.
 
-Usage::
+Quickest way to extract features::
 
-    from mosaique import FeatureExtractor, parse_featureextraction_config
-    from mosaique.config import resolve_pipeline
+    import mosaique
 
-    pipeline = parse_featureextraction_config("features_config.yaml")
-    features, transforms = resolve_pipeline(pipeline)
-    extractor = FeatureExtractor(features, transforms, num_workers=4)
-    df = extractor.extract_feature(eeg_epochs, eeg_id="subject_01")
+    df = mosaique.extract("config.yaml", epochs, eeg_id="subject_01")
+
+Or with more control::
+
+    from mosaique import FeatureExtractor
+
+    extractor = FeatureExtractor("config.yaml", num_workers=4)
+    df = extractor.extract_feature(epochs, eeg_id="subject_01")
 
 See :mod:`mosaique.extraction.transforms` for how to add custom transforms,
 and :mod:`mosaique.features` for how to write new feature functions.
