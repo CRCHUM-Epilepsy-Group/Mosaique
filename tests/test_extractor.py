@@ -6,7 +6,7 @@ import pytest
 from rich.console import Console
 
 import mosaique
-from mosaique import FeatureExtractor, parse_featureextraction_config
+from mosaique import FeatureExtractor, extract, parse_featureextraction_config
 from mosaique.config.loader import resolve_pipeline
 from mosaique.config.types import ExtractionStep
 from mosaique.extraction.eegdata import EegData
@@ -352,3 +352,18 @@ class TestBatchingIntegration:
 
         # 4 epochs × 2 channels × 3 features = 24 rows
         assert len(df) == 24
+
+
+class TestExtractConvenienceFunction:
+    def test_extract_matches_explicit_workflow(
+        self, synthetic_epochs, minimal_config_file
+    ):
+        df_explicit = FeatureExtractor(
+            minimal_config_file, debug=True, console=Console(quiet=True)
+        ).extract_feature(synthetic_epochs, eeg_id="ref")
+
+        df_convenience = extract(minimal_config_file, synthetic_epochs, eeg_id="ref")
+
+        assert isinstance(df_convenience, pl.DataFrame)
+        assert len(df_convenience) == len(df_explicit)
+        assert set(df_convenience.columns) == set(df_explicit.columns)
