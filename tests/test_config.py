@@ -194,3 +194,61 @@ class TestAutoGenerateTransforms:
         }
         with pytest.raises(Exception, match="transforms.*required"):
             parse_featureextraction_config(raw)
+
+
+class TestStringShorthand:
+    """ExtractionStepConfig accepts a bare dotted-path string."""
+
+    def test_string_entry_in_dict(self):
+        raw = {
+            "features": {"simple": ["univariate.line_length"]},
+            "transforms": {"simple": [{"name": "simple", "function": None}]},
+        }
+        pipeline = parse_featureextraction_config(raw)
+        step = pipeline.features["simple"][0]
+        assert step.name == "line_length"
+        assert step.function == "univariate.line_length"
+
+    def test_string_entry_in_yaml(self):
+        yaml_str = """\
+features:
+  simple:
+    - univariate.line_length
+transforms:
+  simple:
+    - name: simple
+      function: null
+"""
+        pipeline = parse_featureextraction_config(yaml_str)
+        step = pipeline.features["simple"][0]
+        assert step.name == "line_length"
+        assert step.function == "univariate.line_length"
+
+    def test_mixed_string_and_dict_entries(self):
+        raw = {
+            "features": {
+                "simple": [
+                    "univariate.line_length",
+                    {
+                        "name": "sampen",
+                        "function": "univariate.sample_entropy",
+                        "params": {"m": [2, 3]},
+                    },
+                ]
+            },
+            "transforms": {"simple": [{"name": "simple", "function": None}]},
+        }
+        pipeline = parse_featureextraction_config(raw)
+        features, _ = resolve_pipeline(pipeline)
+        names = [s.name for s in features["simple"]]
+        assert names == ["line_length", "sampen"]
+
+    def test_string_shorthand_function_resolved(self):
+        raw = {
+            "features": {"simple": ["univariate.line_length"]},
+            "transforms": {"simple": [{"name": "simple", "function": None}]},
+        }
+        pipeline = parse_featureextraction_config(raw)
+        features, _ = resolve_pipeline(pipeline)
+        step = features["simple"][0]
+        assert step.function is line_length

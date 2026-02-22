@@ -91,6 +91,24 @@ class ExtractionStepConfig(BaseModel):
     function: str | None = None
     params: dict[str, Any] | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def expand_string_shorthand(cls, data: Any) -> Any:
+        """Convert a bare dotted-path string to a full step dict.
+
+        Example::
+
+            # These two are equivalent:
+            - univariate.line_length
+            - name: line_length
+              function: univariate.line_length
+        """
+        if isinstance(data, str):
+            func_path = data
+            name = func_path.rsplit(".", maxsplit=1)[-1]
+            return {"name": name, "function": func_path}
+        return data
+
 
 def _normalize_params(params: dict[str, Any] | None) -> dict[str, list[Any]]:
     """Wrap scalar param values in lists for grid expansion."""
