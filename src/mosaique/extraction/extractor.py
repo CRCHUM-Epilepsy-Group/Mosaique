@@ -33,16 +33,24 @@ class FeatureExtractor:
 
     Parameters
     ----------
-    features : Mapping[str, list[ExtractionStep]]
-        Feature functions grouped by transform name.  Each key must match a
-        key in *transforms*.  Values are lists of :class:`ExtractionStep` –
-        one per feature function (with optional parameter grids).
-    transforms : Mapping[str, list[ExtractionStep]]
+    config : str | Path | dict | None
+        Pipeline configuration.  Accepts:
+
+        - a path to a YAML file (``str`` ending in ``.yaml``/``.yml`` or
+          :class:`pathlib.Path`),
+        - a raw YAML string,
+        - a :class:`dict` with the same structure as a YAML config.
+
+        When *config* is given, ``features`` and ``transforms`` must not be
+        provided.  Pass ``None`` to use the legacy ``features``/``transforms``
+        kwargs instead.
+    features : Mapping[str, list[ExtractionStep]], optional
+        Feature functions grouped by transform name.  Used for the legacy
+        calling convention; ignored when *config* is provided.
+    transforms : Mapping[str, list[ExtractionStep]], optional
         Pre-extraction transform definitions grouped by transform name.
-        The transform name must be a key in
-        :data:`~mosaique.extraction.transforms.TRANSFORM_REGISTRY`
-        (``"tf_decomposition"``, ``"simple"``, ``"connectivity"``, or any
-        custom transform you registered).
+        Used for the legacy calling convention; ignored when *config* is
+        provided.
     log_dir : str | Path | None
         If set, one log file per EEG recording is written here.
     num_workers : int
@@ -61,12 +69,10 @@ class FeatureExtractor:
     -------
     ::
 
-        from mosaique import FeatureExtractor, parse_featureextraction_config
+        from mosaique import FeatureExtractor
 
-        pipeline = parse_featureextraction_config("config.yaml")
-        extractor = FeatureExtractor(features, transforms, num_workers=4)
-
-        # Pass an MNE Epochs object or any EpochsLike
+        # Simplified: pass config directly
+        extractor = FeatureExtractor("config.yaml", num_workers=4)
         df = extractor.extract_feature(epochs, eeg_id="subject_01")
 
         # Or pass a numpy array directly
@@ -80,14 +86,33 @@ class FeatureExtractor:
 
     def __init__(
         self,
-        features: Mapping[str, list[ExtractionStep]],
-        transforms: Mapping[str, list[ExtractionStep]],
+        config: str | Path | dict | None = None,
+        features: Mapping[str, list[ExtractionStep]] | None = None,
+        transforms: Mapping[str, list[ExtractionStep]] | None = None,
         log_dir: str | Path | None = None,
         num_workers: int = 1,
         batch_size: int = 128,
         debug=False,
         console=Console(),
     ):
+        if config is not None:
+            if features is not None or transforms is not None:
+                raise ValueError(
+                    "Cannot specify both 'config' and 'features'/'transforms'"
+                )
+            from mosaique.config.loader import (
+                parse_featureextraction_config,
+                resolve_pipeline,
+            )
+
+            pipeline = parse_featureextraction_config(config)
+            features, transforms = resolve_pipeline(pipeline)
+        else:
+            if features is None or transforms is None:
+                raise ValueError(
+                    "Must specify either 'config' or both 'features' and 'transforms'"
+                )
+
         # Feature extraction params for each feature
         self._features = features
         self._required_transforms = list(features.keys())

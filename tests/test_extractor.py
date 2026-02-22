@@ -5,6 +5,7 @@ import polars as pl
 import pytest
 from rich.console import Console
 
+import mosaique
 from mosaique import FeatureExtractor, parse_featureextraction_config
 from mosaique.config.loader import resolve_pipeline
 from mosaique.config.types import ExtractionStep
@@ -40,8 +41,8 @@ def simple_transforms():
 class TestParamGrid:
     def test_grid_expansion(self, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -54,8 +55,8 @@ class TestParamGrid:
 
     def test_grid_names(self, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -66,8 +67,8 @@ class TestParamGrid:
 
     def test_grid_params(self, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -84,8 +85,8 @@ class TestParamGrid:
 class TestExtractFeature:
     def test_end_to_end(self, synthetic_epochs, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -95,8 +96,8 @@ class TestExtractFeature:
 
     def test_output_columns(self, synthetic_epochs, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -108,8 +109,8 @@ class TestExtractFeature:
         self, synthetic_epochs, simple_features, simple_transforms
     ):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -122,18 +123,89 @@ class TestExtractFeature:
         pipeline = parse_featureextraction_config(minimal_config_file)
         features, transforms = resolve_pipeline(pipeline)
         extractor = FeatureExtractor(
-            features, transforms, debug=True, console=Console(quiet=True)
+            features=features,
+            transforms=transforms,
+            debug=True,
+            console=Console(quiet=True),
         )
         df = extractor.extract_feature(synthetic_epochs, eeg_id="test_yaml")
         assert isinstance(df, pl.DataFrame)
         assert len(df) > 0
 
 
+class TestFeatureExtractorConfigInit:
+    """FeatureExtractor accepts config directly (file, string, dict, or kwargs)."""
+
+    def test_from_yaml_file(self, synthetic_epochs, minimal_config_file):
+        extractor = FeatureExtractor(
+            minimal_config_file, debug=True, console=Console(quiet=True)
+        )
+        df = extractor.extract_feature(synthetic_epochs, eeg_id="test_file")
+        assert isinstance(df, pl.DataFrame)
+        assert len(df) > 0
+
+    def test_from_yaml_string(self, synthetic_epochs):
+        yaml_str = """\
+features:
+  simple:
+    - name: linelength
+      function: univariate.line_length
+transforms:
+  simple:
+    - name: simple
+      function: null
+      params: null
+"""
+        extractor = FeatureExtractor(yaml_str, debug=True, console=Console(quiet=True))
+        df = extractor.extract_feature(synthetic_epochs, eeg_id="test_str")
+        assert isinstance(df, pl.DataFrame)
+        assert len(df) > 0
+
+    def test_from_dict(self, synthetic_epochs):
+        config = {
+            "features": {
+                "simple": [{"name": "linelength", "function": "univariate.line_length"}]
+            },
+            "transforms": {
+                "simple": [{"name": "simple", "function": None, "params": None}]
+            },
+        }
+        extractor = FeatureExtractor(config, debug=True, console=Console(quiet=True))
+        df = extractor.extract_feature(synthetic_epochs, eeg_id="test_dict")
+        assert isinstance(df, pl.DataFrame)
+        assert len(df) > 0
+
+    def test_backwards_compat_kwargs(
+        self, synthetic_epochs, simple_features, simple_transforms
+    ):
+        extractor = FeatureExtractor(
+            features=simple_features,
+            transforms=simple_transforms,
+            debug=True,
+            console=Console(quiet=True),
+        )
+        df = extractor.extract_feature(synthetic_epochs, eeg_id="test_kwargs")
+        assert isinstance(df, pl.DataFrame)
+        assert len(df) > 0
+
+    def test_config_and_features_raises(self, simple_features, simple_transforms):
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            FeatureExtractor(
+                "some_config.yaml",
+                features=simple_features,
+                transforms=simple_transforms,
+            )
+
+    def test_neither_config_nor_features_raises(self):
+        with pytest.raises(ValueError, match="Must specify either"):
+            FeatureExtractor()
+
+
 class TestExtractFeatureFromArray:
     def test_numpy_input(self, synthetic_array, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -148,8 +220,8 @@ class TestExtractFeatureFromArray:
     ):
         ch_names = ["Fp1", "C3", "O1"]
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -162,8 +234,8 @@ class TestExtractFeatureFromArray:
         self, synthetic_array, simple_features, simple_transforms
     ):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -174,8 +246,8 @@ class TestExtractFeatureFromArray:
         self, synthetic_array, simple_features, simple_transforms
     ):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -227,8 +299,8 @@ class TestEegDataSlice:
 class TestBatchSize:
     def test_default_batch_size(self, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             console=Console(quiet=True),
         )
@@ -236,8 +308,8 @@ class TestBatchSize:
 
     def test_custom_batch_size(self, simple_features, simple_transforms):
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             batch_size=64,
             console=Console(quiet=True),
@@ -252,8 +324,8 @@ class TestBatchingIntegration:
         data = rng.standard_normal((10, 3, 400)) * 1e-6
 
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             batch_size=3,
             console=Console(quiet=True),
@@ -270,8 +342,8 @@ class TestBatchingIntegration:
         data = rng.standard_normal((4, 2, 200)) * 1e-6
 
         extractor = FeatureExtractor(
-            simple_features,
-            simple_transforms,
+            features=simple_features,
+            transforms=simple_transforms,
             debug=True,
             batch_size=1,
             console=Console(quiet=True),

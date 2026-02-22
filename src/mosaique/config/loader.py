@@ -96,7 +96,7 @@ def load_feature_extraction_func(dotpath: str | None) -> Callable | None:
 def parse_featureextraction_config(
     config: str | Path | dict,
 ) -> PipelineConfig:
-    """Parse a feature extraction config from a YAML file or dict.
+    """Parse a feature extraction config from a YAML file, YAML string, or dict.
 
     The input must contain two top-level keys:
 
@@ -114,7 +114,9 @@ def parse_featureextraction_config(
     Parameters
     ----------
     config : str | Path | dict
-        Path to a YAML configuration file, or a dict with the same structure.
+        Path to a YAML configuration file (str ending in ``.yaml``/``.yml``
+        or a :class:`pathlib.Path`), a raw YAML string, or a dict with the
+        same structure.
 
     Returns
     -------
@@ -127,18 +129,30 @@ def parse_featureextraction_config(
     ::
 
         pipeline = parse_featureextraction_config("config.yaml")
-        extractor = FeatureExtractor(pipeline)
+        extractor = FeatureExtractor("config.yaml", num_workers=4)
     """
     if isinstance(config, dict):
         raw = config
-    else:
+    elif isinstance(config, Path) or (
+        isinstance(config, str)
+        and config.endswith((".yaml", ".yml"))
+        and "\n" not in config
+    ):
         raw = parse_config(config)
+    else:
+        # Treat as a raw YAML string
+        try:
+            raw = yaml.load(config, Loader=get_loader())
+        except yaml.YAMLError as exc:
+            raise ValueError(f"invalid YAML string: {exc}") from exc
 
     pipeline = PipelineConfig.model_validate(raw)
     return pipeline
 
 
-def resolve_pipeline(pipeline: PipelineConfig) -> tuple[
+def resolve_pipeline(
+    pipeline: PipelineConfig,
+) -> tuple[
     dict[str, list[ExtractionStep]],
     dict[str, list[ExtractionStep]],
 ]:
