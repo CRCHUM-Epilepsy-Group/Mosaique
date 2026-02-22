@@ -129,9 +129,7 @@ class TestParseFeatureExtractionConfig:
             "features": {
                 "simple": [{"name": "ll", "function": "univariate.line_length"}]
             },
-            "transforms": {
-                "tf_decomposition": [{"name": "cwt", "function": None}]
-            },
+            "transforms": {"tf_decomposition": [{"name": "cwt", "function": None}]},
         }
         with pytest.raises(Exception, match="keys must match"):
             parse_featureextraction_config(raw)
@@ -141,9 +139,58 @@ class TestParseFeatureExtractionConfig:
             "features": {
                 "nonexistent": [{"name": "ll", "function": "univariate.line_length"}]
             },
-            "transforms": {
-                "nonexistent": [{"name": "x", "function": None}]
-            },
+            "transforms": {"nonexistent": [{"name": "x", "function": None}]},
         }
         with pytest.raises(Exception, match="unknown transform keys"):
+            parse_featureextraction_config(raw)
+
+    def test_yaml_string_input(self):
+        yaml_str = """\
+features:
+  simple:
+    - name: linelength
+      function: univariate.line_length
+transforms:
+  simple:
+    - name: simple
+      function: null
+      params: null
+"""
+        pipeline = parse_featureextraction_config(yaml_str)
+        assert isinstance(pipeline, PipelineConfig)
+        assert "simple" in pipeline.features
+
+    def test_invalid_yaml_string_raises(self):
+        with pytest.raises(ValueError, match="invalid YAML string"):
+            parse_featureextraction_config("features:\n  - [invalid: yaml: :\n")
+
+
+class TestAutoGenerateTransforms:
+    """PipelineConfig auto-generates simple transforms when omitted."""
+
+    def test_omitted_transforms_simple(self):
+        raw = {
+            "features": {
+                "simple": [{"name": "ll", "function": "univariate.line_length"}]
+            }
+        }
+        pipeline = parse_featureextraction_config(raw)
+        assert "simple" in pipeline.transforms
+        assert pipeline.transforms["simple"][0].name == "simple"
+
+    def test_list_of_features_shorthand(self):
+        raw = {"features": [{"name": "ll", "function": "univariate.line_length"}]}
+        pipeline = parse_featureextraction_config(raw)
+        assert "simple" in pipeline.features
+        assert "simple" in pipeline.transforms
+
+    def test_non_simple_missing_transforms_raises(self):
+        raw = {
+            "features": {
+                "tf_decomposition": [
+                    {"name": "ll", "function": "univariate.line_length"}
+                ]
+            }
+        }
+        with pytest.raises(Exception, match="transforms.*required"):
             parse_featureextraction_config(raw)

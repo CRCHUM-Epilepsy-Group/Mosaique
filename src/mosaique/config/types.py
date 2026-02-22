@@ -138,6 +138,41 @@ class PipelineConfig(BaseModel):
     features: dict[str, list[ExtractionStepConfig]]
     transforms: dict[str, list[ExtractionStepConfig]]
 
+    @model_validator(mode="before")
+    @classmethod
+    def auto_generate_transforms(cls, data: Any) -> Any:
+        """Auto-generate a simple transform when the ``transforms`` key is omitted.
+
+        Also accepts ``features`` as a flat list, wrapping it as
+        ``{"simple": <list>}`` with an auto-generated simple transform.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        features = data.get("features")
+
+        # If features is a list, wrap it as {"simple": <list>}
+        if isinstance(features, list):
+            data = {**data, "features": {"simple": features}}
+            features = data["features"]
+
+        if "transforms" not in data and features is not None:
+            # Auto-generate simple transform entries for each feature group key.
+            # Only valid for the "simple" transform type; other keys require an
+            # explicit transforms section.
+            non_simple = [k for k in features if k != "simple"]
+            if non_simple:
+                raise ValueError(
+                    f"'transforms' section is required when features contain "
+                    f"non-simple keys: {non_simple}"
+                )
+            data = {
+                **data,
+                "transforms": {k: [{"name": k}] for k in features},
+            }
+
+        return data
+
     @model_validator(mode="after")
     def keys_must_match(self) -> Self:
         feat_keys = set(self.features.keys())
@@ -150,7 +185,9 @@ class PipelineConfig(BaseModel):
                 parts.append(f"only in features: {only_features}")
             if only_transforms:
                 parts.append(f"only in transforms: {only_transforms}")
-            raise ValueError(f"features and transforms keys must match; {'; '.join(parts)}")
+            raise ValueError(
+                f"features and transforms keys must match; {'; '.join(parts)}"
+            )
         return self
 
     @model_validator(mode="after")
