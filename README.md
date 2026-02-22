@@ -94,6 +94,10 @@ df = mosaique.extract("config.yaml", epochs, eeg_id="subject_01", num_workers=4)
 
 ## Configuration
 
+A **transform** pre-processes the raw EEG signal before feature extraction. It operates on the full multi-channel signal and produces an intermediate representation — for example, a per-band time series (after wavelet decomposition) or a channel-to-channel connectivity matrix. The `simple` transform is the identity: features are applied directly to the raw signal.
+
+A **feature** is a scalar summary extracted from that representation. For `simple` and `tf_decomposition`, feature functions receive a 1-D array (one channel's time series); for `connectivity`, they receive a 2-D matrix (one epoch's channel × channel connectivity). Each `(transform, feature, parameter combination)` triple becomes one row in the output DataFrame.
+
 ### Minimal config
 
 The simplest valid config — just a list of features under `features`, no `transforms` section needed:
