@@ -8,3 +8,4 @@ benchmark/output/*.parquet
 /benchmark/output/*.png
 /script/output/
 /tests/test_data/
+*.tasks.json
