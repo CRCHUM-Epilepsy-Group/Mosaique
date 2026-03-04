@@ -17,7 +17,6 @@ If the feature has special parameters or return types (like band_power),
 add a dedicated test class instead.
 """
 
-import networkx as nx
 import numpy as np
 import pytest
 
@@ -310,7 +309,7 @@ class TestConnectivityEdgeCases:
         try:
             result = func(mat)
             assert isinstance(result, (float, np.floating))
-        except (ValueError, nx.NetworkXError):
+        except ValueError:
             pass  # acceptable — clear error on degenerate graph
 
 
