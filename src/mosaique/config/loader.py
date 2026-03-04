@@ -14,6 +14,7 @@ from mosaique.config.types import (
     PipelineConfig,
     _normalize_params,
 )
+from mosaique.features.registry import FEATURE_REGISTRY
 
 
 class PrettySafeLoader(yaml.SafeLoader):
@@ -167,14 +168,24 @@ def resolve_pipeline(
     transforms: dict[str, list[ExtractionStep]] = {}
 
     for group_name, step_configs in pipeline.features.items():
-        features[group_name] = [
-            ExtractionStep(
-                name=sc.name,
-                function=load_feature_extraction_func(sc.function),
-                params=_normalize_params(sc.params),
+        resolved = []
+        for sc in step_configs:
+            func = load_feature_extraction_func(sc.function)
+            if func is not None and func.__name__ in FEATURE_REGISTRY:
+                entry = FEATURE_REGISTRY[func.__name__]
+                if group_name not in entry.transforms:
+                    raise ValueError(
+                        f"Feature {sc.function!r} is registered for "
+                        f"{set(entry.transforms)}, not {group_name!r}"
+                    )
+            resolved.append(
+                ExtractionStep(
+                    name=sc.name,
+                    function=func,
+                    params=_normalize_params(sc.params),
+                )
             )
-            for sc in step_configs
-        ]
+        features[group_name] = resolved
 
     for group_name, step_configs in pipeline.transforms.items():
         transforms[group_name] = [

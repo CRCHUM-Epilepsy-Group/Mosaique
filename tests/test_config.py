@@ -252,3 +252,34 @@ transforms:
         features, _ = resolve_pipeline(pipeline)
         step = features["simple"][0]
         assert step.function is line_length
+
+
+def test_resolve_pipeline_rejects_incompatible_transform():
+    """A registered feature wired to the wrong transform raises ValueError."""
+    from mosaique.config.loader import (
+        parse_featureextraction_config,
+        resolve_pipeline,
+    )
+
+    config = {
+        "features": {
+            "connectivity": [
+                {"name": "line_length", "function": "univariate.line_length"},
+            ]
+        },
+        "transforms": {
+            "connectivity": [
+                {
+                    "name": "connectivity",
+                    "function": "connectivity.cwt_spectral_connectivity",
+                    "params": {
+                        "freqs": [[(4, 8)]],
+                        "method": "pli",
+                    },
+                }
+            ],
+        },
+    }
+    pipeline = parse_featureextraction_config(config)
+    with pytest.raises(ValueError, match="registered for.*simple.*not.*connectivity"):
+        resolve_pipeline(pipeline)
