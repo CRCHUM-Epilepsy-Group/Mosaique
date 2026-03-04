@@ -52,7 +52,7 @@ See `script/features_config.yaml` for a working example.
 - **Custom transform**: subclass `PreExtractionTransform`, implement `transform()` and `extract_feature()`, register in `TRANSFORM_REGISTRY` (`extraction/transforms/__init__.py`).
 - **Custom feature**: write a function matching `FeatureFunction` protocol; reference it by dotted path in YAML.
 - **Registering a built-in feature**: decorate with `@register_feature(transform="simple")` from `mosaique.features.registry`. This auto-includes it in edge-case tests and enables config-time validation (mismatched transform types are caught before extraction).
-- **CI**: GitHub Actions (`.github/workflows/ci.yml`) runs pytest + pyright + ruff on every push to `main` and every PR to `main`.
+- **CI**: GitHub Actions (`.github/workflows/ci.yml`) runs pytest + ruff on every push to `main` and every PR to `main`.
 
 ## Git
 
@@ -63,7 +63,6 @@ See `script/features_config.yaml` for a working example.
 - Package manager: **uv** (`uv.lock` present)
 - Testing: pytest (features are auto-discovered from `FEATURE_REGISTRY`)
 - Linting: **ruff**
-- Type checking: **pyright**
 - Build backend: **hatchling**
 - MNE is an optional dependency (`pip install mosaique[mne]`)
 - Environment auto-activated via direnv (`.envrc`)

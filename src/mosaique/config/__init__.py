@@ -9,6 +9,7 @@ from mosaique.config.types import (
     TransformFunction,
 )
 
+
 def get_config_schema() -> dict:
     """Return the JSON schema for PipelineConfig.
 

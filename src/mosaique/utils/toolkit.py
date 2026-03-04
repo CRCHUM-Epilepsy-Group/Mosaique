@@ -1,4 +1,5 @@
 import base64
+import logging
 import os
 import pathlib
 import shutil
@@ -6,8 +7,6 @@ from collections.abc import Callable, Iterable, Mapping
 from functools import partial
 from pathlib import Path
 from typing import Any, TypeVar
-
-import logging
 
 import numpy as np
 import polars as pl

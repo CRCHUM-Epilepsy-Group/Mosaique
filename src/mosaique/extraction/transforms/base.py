@@ -3,7 +3,6 @@
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
-import numpy as np
 import polars as pl
 from rich.console import Console
 

@@ -3,8 +3,6 @@
 from typing import Any
 
 import numpy as np
-
-from mosaique.features.registry import register_feature
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import (
     connected_components,
@@ -12,6 +10,8 @@ from scipy.sparse.csgraph import (
     minimum_spanning_tree,
     shortest_path,
 )
+
+from mosaique.features.registry import register_feature
 
 
 def _validate_matrix(mat: np.ndarray) -> np.ndarray:

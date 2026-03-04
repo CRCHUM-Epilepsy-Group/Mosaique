@@ -20,27 +20,27 @@ add a dedicated test class instead.
 import numpy as np
 import pytest
 
-# Force import to trigger decorators
-import mosaique.features.univariate  # noqa: F401
 import mosaique.features.graph_metrics  # noqa: F401
 
-from mosaique.features.univariate import (
-    peak_alpha,
-    band_power,
-    sample_entropy,
-    line_length,
-    permutation_entropy,
-    spectral_entropy,
-)
+# Force import to trigger decorators
+import mosaique.features.univariate  # noqa: F401
 from mosaique.features.connectivity import connected_threshold
 from mosaique.features.graph_metrics import (
     average_clustering,
-    average_node_connectivity,
     average_degree,
-    global_efficiency,
+    average_node_connectivity,
     average_shortest_path_length,
+    global_efficiency,
 )
 from mosaique.features.registry import FEATURE_REGISTRY
+from mosaique.features.univariate import (
+    band_power,
+    line_length,
+    peak_alpha,
+    permutation_entropy,
+    sample_entropy,
+    spectral_entropy,
+)
 
 # ---------------------------------------------------------------------------
 # Feature registries — auto-discovered from registry

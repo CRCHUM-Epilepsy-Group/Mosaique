@@ -9,7 +9,7 @@ from mosaique.config.loader import (
     resolve_pipeline,
 )
 from mosaique.config.types import ExtractionStep, PipelineConfig
-from mosaique.features.univariate import line_length, sample_entropy
+from mosaique.features.univariate import line_length
 
 
 class TestLoadFeatureExtractionFunc:

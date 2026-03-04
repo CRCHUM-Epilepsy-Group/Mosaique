@@ -23,13 +23,10 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --extra mne
-
-      - name: Run tests
-        run: uv run pytest
-
-      - name: Type check
-        run: uv run pyright
+        run: uv sync --extra mne --group dev
 
       - name: Lint
-        run: uv run ruff check
+        run: uv run ruff check src/ tests/
+
+      - name: Run tests
+        run: uv run pytest -v --tb=short

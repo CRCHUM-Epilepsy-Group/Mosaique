@@ -1,6 +1,6 @@
+import mne
 import numpy as np
 import pytest
-import mne
 
 
 @pytest.fixture

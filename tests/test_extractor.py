@@ -5,7 +5,6 @@ import polars as pl
 import pytest
 from rich.console import Console
 
-import mosaique
 from mosaique import FeatureExtractor, extract, parse_featureextraction_config
 from mosaique.config.loader import resolve_pipeline
 from mosaique.config.types import ExtractionStep

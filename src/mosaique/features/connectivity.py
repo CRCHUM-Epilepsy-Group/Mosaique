@@ -2,10 +2,6 @@
 
 import numpy as np
 import pywt
-from mosaique.features.timefrequency import (
-    WaveletCoefficients,
-    get_wavelet_scales,
-)
 
 # Re-export graph metrics for backward compatibility
 from mosaique.features.graph_metrics import (  # noqa: F401
@@ -17,6 +13,10 @@ from mosaique.features.graph_metrics import (  # noqa: F401
     binary_threshold,
     connected_threshold,
     global_efficiency,
+)
+from mosaique.features.timefrequency import (
+    WaveletCoefficients,
+    get_wavelet_scales,
 )
 
 

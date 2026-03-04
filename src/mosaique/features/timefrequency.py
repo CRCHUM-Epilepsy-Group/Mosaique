@@ -14,10 +14,11 @@ Types
     keyed by frequency band.
 """
 
-from rich.console import Console
-from mosaique.utils.toolkit import calculate_over_pool
-import pywt
 import numpy as np
+import pywt
+from rich.console import Console
+
+from mosaique.utils.toolkit import calculate_over_pool
 
 FrequencyBand = tuple[float, float]
 """A ``(low_hz, high_hz)`` frequency band specification."""

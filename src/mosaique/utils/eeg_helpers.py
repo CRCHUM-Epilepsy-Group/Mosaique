@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 # Standard 10-20 channel -> region/side mapping
 _CHANNEL_REGION_MAP: dict[str, str] = {
     "Fp1": "frontal_left",

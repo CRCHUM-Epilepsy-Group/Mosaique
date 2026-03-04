@@ -15,7 +15,7 @@ from rich.progress import Progress
 
 from mosaique.config.types import ExtractionStep
 from mosaique.extraction.eegdata import EegData, EpochsLike
-from mosaique.extraction.transforms import TRANSFORM_REGISTRY, PreExtractionTransform
+from mosaique.extraction.transforms import TRANSFORM_REGISTRY
 from mosaique.features.timefrequency import FrequencyBand
 from mosaique.utils.eeg_helpers import get_region_side
 
@@ -97,9 +97,7 @@ class FeatureExtractor:
     ):
         if config is not None:
             if features is not None or transforms is not None:
-                raise ValueError(
-                    "Cannot specify both 'config' and 'features'/'transforms'"
-                )
+                raise ValueError("Cannot specify both 'config' and 'features'/'transforms'")
             from mosaique.config.loader import (
                 parse_featureextraction_config,
                 resolve_pipeline,
@@ -109,9 +107,7 @@ class FeatureExtractor:
             features, transforms = resolve_pipeline(pipeline)
         else:
             if features is None or transforms is None:
-                raise ValueError(
-                    "Must specify either 'config' or both 'features' and 'transforms'"
-                )
+                raise ValueError("Must specify either 'config' or both 'features' and 'transforms'")
 
         # Feature extraction params for each feature
         self._features = features
@@ -227,13 +223,9 @@ class FeatureExtractor:
                 continue
 
             feature_time = time.perf_counter() - feature_start
-            self.logger.info(
-                f"Feature {name}: {params} completed in {feature_time:.2f}s"
-            )
+            self.logger.info(f"Feature {name}: {params} completed in {feature_time:.2f}s")
             # Add the parameters to the dataframe
-            df = df.with_columns(
-                feature=pl.lit(name), computation_time=pl.lit(feature_time)
-            )
+            df = df.with_columns(feature=pl.lit(name), computation_time=pl.lit(feature_time))
             if name != "band_power":
                 for k, v in params.items():
                     df = df.with_columns(pl.lit(v).alias(k))
@@ -261,9 +253,7 @@ class FeatureExtractor:
         if param_cols:
             params_expr = (
                 pl.struct(list(param_cols))
-                .map_elements(
-                    lambda x: self._concat_params(x.values()), return_dtype=pl.String
-                )
+                .map_elements(lambda x: self._concat_params(x.values()), return_dtype=pl.String)
                 .alias("params")
             )
         else:
@@ -372,9 +362,7 @@ class FeatureExtractor:
                 self.logger.info("-" * 50)
 
                 with Progress(console=self.console, transient=True) as progress:
-                    n_features = len(
-                        self._make_param_grid(self._features[transform_name])
-                    )
+                    n_features = len(self._make_param_grid(self._features[transform_name]))
                     task_id = progress.add_task(
                         f"[batch {batch_idx + 1}/{n_batches}] Extracting ({transform_name})...",
                         total=len(self._transform_grid) * n_features,
@@ -396,17 +384,16 @@ class FeatureExtractor:
                         self._curr_transform._cache_tag = self._cache_tag
 
                         # 2. Apply pre-extraction transform
-                        self._transformed_eeg = self._curr_transform.transform(
-                            batch_eeg
-                        )
+                        self._transformed_eeg = self._curr_transform.transform(batch_eeg)
                         transform_time = time.perf_counter() - transform_start
-                        progress.update(
-                            task_id,
-                            description=f"[batch {batch_idx + 1}/{n_batches}] Extracting ({transform_name})...",
+                        desc = (
+                            f"[batch {batch_idx + 1}/{n_batches}] Extracting ({transform_name})..."
                         )
+                        progress.update(task_id, description=desc)
 
                         self.logger.info(
-                            f"Transform {transform_name}: {self._curr_transform_params} completed in {transform_time:.2f}s"
+                            f"Transform {transform_name}: {self._curr_transform_params} "
+                            f"completed in {transform_time:.2f}s"
                         )
 
                         # 3. Extract all features for this transform
@@ -415,9 +402,7 @@ class FeatureExtractor:
                             self._transformed_eeg, progress=progress, task_id=task_id
                         )
                         # 4. Add hyperparameters to dataframe
-                        self._transformed_df = self._curr_transform.complete_df(
-                            features
-                        )
+                        self._transformed_df = self._curr_transform.complete_df(features)
 
                         # 5. Append to list of dataframes
                         self._extracted_features.append(self._transformed_df)
@@ -426,11 +411,10 @@ class FeatureExtractor:
                         self._cached_coeffs = self._curr_transform._cached_coeffs
                         self._cache_tag = self._curr_transform._cache_tag
 
-                    transform_group_time = (
-                        time.perf_counter() - transform_group_start
-                    ) / 60
+                    transform_group_time = (time.perf_counter() - transform_group_start) / 60
                     self.logger.info(
-                        f"All features for {transform_name} extracted in {(transform_group_time):.2f}m"
+                        f"All features for {transform_name} "
+                        f"extracted in {transform_group_time:.2f}m"
                     )
 
             # Free CWT cache between batches
@@ -439,9 +423,7 @@ class FeatureExtractor:
 
         non_empty = [f for f in self._extracted_features if len(f) > 0]
         final_features = (
-            pl.concat(non_empty, how="diagonal_relaxed")
-            if non_empty
-            else pl.DataFrame()
+            pl.concat(non_empty, how="diagonal_relaxed") if non_empty else pl.DataFrame()
         )
         final_features_cleaned = self._clean_features_df(final_features)
 

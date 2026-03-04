@@ -230,15 +230,14 @@ def my_feature(x, sfreq=200, **kwargs):
 
 When a PR is opened (or code is pushed to `main`), the CI pipeline runs three checks:
 
-1. **pytest** — the full test suite, including:
+1. **ruff** — linting.
+2. **pytest** — the full test suite, including:
    - Edge-case tests (flat signal, NaN/Inf, short input, large values) auto-generated for every registered feature.
    - An integration test that verifies every registered feature produces at least one output row.
    - A completeness check that every public function in `mosaique/features/` is decorated — contributors cannot forget.
    - Config-time validation that catches features wired to an incompatible transform type.
-2. **pyright** — static type checking.
-3. **ruff** — linting.
 
-All three must pass before merging.
+Both must pass before merging.
 
 ## Benchmarks
 

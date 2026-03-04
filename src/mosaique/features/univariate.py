@@ -20,7 +20,6 @@ from scipy.spatial.distance import pdist
 from mosaique.features.registry import register_feature
 from mosaique.features.timefrequency import FrequencyBand
 
-
 # Helper functions
 
 
@@ -89,7 +88,9 @@ def ordinal_distribution(
     Applies the Bandt and Pompe\\ [#bandt_pompe]_ symbolization approach to obtain
     a probability distribution of ordinal patterns (permutations) from data.
 
-    Source: A. A. B. Pessa, H. V. Ribeiro, ordpy: A Python package for data analysis with permutation entropy and ordinal network methods, Chaos 31, 063110 (2021).
+    Source: A. A. B. Pessa, H. V. Ribeiro, ordpy: A Python package for data
+    analysis with permutation entropy and ordinal network methods,
+    Chaos 31, 063110 (2021).
 
     Parameters
     ----------
@@ -114,7 +115,7 @@ def ordinal_distribution(
     try:
         ny, nx = np.shape(data)
         data = np.array(data)
-    except:
+    except ValueError:
         nx = np.shape(data)[0]
         ny = 1
         data = np.array([data])
@@ -202,9 +203,7 @@ def _multitaper_psd(
 
 
 @register_feature(transform="simple")
-def approximate_entropy(
-    x: np.ndarray, m: int = 3, r: float = 0.2, **kwargs: Any
-) -> float:
+def approximate_entropy(x: np.ndarray, m: int = 3, r: float = 0.2, **kwargs: Any) -> float:
     """Compute approximate entropy (ApEn) of a 1-D signal.
 
     Parameters
@@ -342,9 +341,7 @@ def permutation_entropy(x: np.ndarray, k: int = 3, **kwargs: Any) -> float:
 
 
 @register_feature(transform="simple")
-def fuzzy_entropy(
-    x: np.ndarray, m: int = 2, r: float = 0.2, n: int = 2, **kwargs: Any
-) -> float:
+def fuzzy_entropy(x: np.ndarray, m: int = 2, r: float = 0.2, n: int = 2, **kwargs: Any) -> float:
     """Compute fuzzy entropy (FuzzyEn) of a 1-D signal.
 
     Parameters

@@ -2,8 +2,8 @@
 
 import inspect
 
-import mosaique.features.univariate as univariate_mod
 import mosaique.features.graph_metrics as graph_metrics_mod
+import mosaique.features.univariate as univariate_mod
 from mosaique.features.registry import FEATURE_REGISTRY
 
 _UNIVARIATE_HELPERS = {
