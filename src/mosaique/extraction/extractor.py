@@ -144,6 +144,7 @@ class FeatureExtractor:
         if self.num_workers <= 1:
             self.debug = True
         self.console = console
+        self._failed_features: list[str] = []
 
     @property
     def _feature_param_grid(self) -> list[ExtractionStep]:
@@ -219,8 +220,9 @@ class FeatureExtractor:
             try:
                 df = self._curr_transform.extract_feature(eeg, func, **params)
             except Exception as e:
-                self.logger.error(f"Error extracting {name}:\n{format_exc()}")
-                # Skip this feature altogether
+                self.logger.warning(f"Feature {name} failed: {type(e).__name__}: {e}")
+                self.logger.debug(f"Traceback for {name}:\n{format_exc()}")
+                self._failed_features.append(name)
                 continue
 
             feature_time = time.perf_counter() - feature_start
@@ -237,6 +239,8 @@ class FeatureExtractor:
             features.append(df)
             progress.advance(task_id)
 
+        if not features:
+            return pl.DataFrame()
         return pl.concat(features, how="diagonal_relaxed")
 
     def _concat_params(self, param_values: Iterable) -> str:
@@ -432,10 +436,24 @@ class FeatureExtractor:
             self._cached_coeffs = {}
             self._cache_tag = ()
 
-        final_features = pl.concat(self._extracted_features, how="diagonal_relaxed")
+        non_empty = [f for f in self._extracted_features if len(f) > 0]
+        final_features = (
+            pl.concat(non_empty, how="diagonal_relaxed")
+            if non_empty
+            else pl.DataFrame()
+        )
         final_features_cleaned = self._clean_features_df(final_features)
 
         total_time = time.perf_counter() - total_start
         self.logger.info(f"Total extraction time: {total_time / 60:.2f}m")
+
+        if self._failed_features:
+            n = len(self._failed_features)
+            names = ", ".join(sorted(set(self._failed_features)))
+            self.console.print(
+                f"[yellow]Warning: {n} feature extraction(s) failed: {names}. "
+                f"Check logs for details.[/yellow]"
+            )
+            self._failed_features.clear()
 
         return final_features_cleaned

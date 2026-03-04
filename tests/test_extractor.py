@@ -354,6 +354,38 @@ class TestBatchingIntegration:
         assert len(df) == 24
 
 
+def test_failed_features_produce_warnings(synthetic_epochs, caplog):
+    """When a feature fails at runtime, a warning is logged and a summary printed."""
+    import logging
+
+    def always_fails(x, **kwargs):
+        raise RuntimeError("intentional failure")
+
+    features = {
+        "simple": [
+            ExtractionStep(
+                name="always_fails",
+                function=always_fails,
+                params={},
+            ),
+        ]
+    }
+    transforms = {
+        "simple": [
+            ExtractionStep(name="simple", function=None, params={}),
+        ]
+    }
+
+    extractor = FeatureExtractor(
+        features=features, transforms=transforms, num_workers=1
+    )
+
+    with caplog.at_level(logging.WARNING):
+        df = extractor.extract_feature(synthetic_epochs, eeg_id="test")
+
+    assert any("always_fails" in record.message for record in caplog.records)
+
+
 class TestExtractConvenienceFunction:
     def test_extract_matches_explicit_workflow(
         self, synthetic_epochs, minimal_config_file
