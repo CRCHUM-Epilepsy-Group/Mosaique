@@ -39,6 +39,7 @@ from mosaique.features.connectivity import (
     average_degree,
     global_efficiency,
     average_shortest_path_length,
+    connected_threshold,
 )
 
 # ---------------------------------------------------------------------------
@@ -339,11 +340,92 @@ class TestConnectivityCorrectness:
 
     def test_average_shortest_path_length_chain(self):
         # 3-node chain (0-1-2): mean path = (1+2+1+2+1+1)/(3*2) = 4/3
-        mat = np.array([
-            [0, 1, 0],
-            [1, 0, 1],
-            [0, 1, 0],
-        ], dtype=float)
+        mat = np.array(
+            [
+                [0, 1, 0],
+                [1, 0, 1],
+                [0, 1, 0],
+            ],
+            dtype=float,
+        )
         result = average_shortest_path_length(mat)
         assert result == pytest.approx(4 / 3)
 
+    def test_average_degree_sparse(self):
+        # 4-node cycle: each node has degree 2
+        mat = np.array(
+            [
+                [0, 1, 0, 1],
+                [1, 0, 1, 0],
+                [0, 1, 0, 1],
+                [1, 0, 1, 0],
+            ],
+            dtype=float,
+        )
+        assert average_degree(mat) == pytest.approx(2.0)
+
+    def test_average_clustering_with_triangle(self):
+        # Node 0: neighbors {1,2}, edge 1-2 exists → c=1.0
+        # Node 1: neighbors {0,2,3}, triangles 0-1-2 and 1-2-3 → c=2/3
+        # Node 2: neighbors {1,3,0}, triangles 0-1-2 and 1-2-3 → c=2/3 (edge 0-3 missing)
+        # Node 3: neighbors {2,1}, edge 1-2 exists → c=1.0
+        # Average = (1 + 2/3 + 2/3 + 1) / 4 = 5/6
+        mat = np.array(
+            [
+                [0.0, 0.9, 0.1, 0.0],
+                [0.9, 0.0, 0.5, 0.8],
+                [0.1, 0.5, 0.0, 0.7],
+                [0.0, 0.8, 0.7, 0.0],
+            ],
+            dtype=float,
+        )
+        # Verified against networkx 3.6.1
+        assert average_clustering(mat) == pytest.approx(5 / 6)
+
+    def test_global_efficiency_chain(self):
+        # 3-node chain: pairs (0,1)=1, (0,2)=2, (1,2)=1
+        # efficiency = (1/1 + 1/2 + 1/1 + 1/2 + 1/1 + 1/1) / (3*2)
+        #            = (1 + 0.5 + 1 + 0.5 + 1 + 1) / 6 = 5/6
+        # Wait — (0,1)=1, (1,0)=1, (0,2)=2, (2,0)=2, (1,2)=1, (2,1)=1
+        # = (1+1+0.5+0.5+1+1)/6 = 5/6
+        mat = np.array(
+            [
+                [0, 1, 0],
+                [1, 0, 1],
+                [0, 1, 0],
+            ],
+            dtype=float,
+        )
+        assert global_efficiency(mat) == pytest.approx(5 / 6)
+
+    def test_average_node_connectivity_complete(self):
+        # Complete graph of 4 nodes: node connectivity = n-1 = 3
+        n = 4
+        mat = np.ones((n, n)) - np.eye(n)
+        assert average_node_connectivity(mat) == pytest.approx(n - 1)
+
+    def test_average_node_connectivity_chain(self):
+        # 3-node chain: node connectivity between any pair = 1
+        mat = np.array(
+            [
+                [0, 1, 0],
+                [1, 0, 1],
+                [0, 1, 0],
+            ],
+            dtype=float,
+        )
+        assert average_node_connectivity(mat) == pytest.approx(1.0)
+
+    def test_connected_threshold_values(self):
+        # 3x3 matrix: MST uses edges 0.3 and 0.5
+        # min MST edge = 0.3, so threshold at 0.3
+        mat = np.array(
+            [
+                [0.0, 0.8, 0.3],
+                [0.8, 0.0, 0.5],
+                [0.3, 0.5, 0.0],
+            ]
+        )
+        result = connected_threshold(mat)
+        # All edges >= 0.3, so all kept
+        np.testing.assert_array_equal(result, mat)
