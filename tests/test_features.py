@@ -20,48 +20,43 @@ add a dedicated test class instead.
 import numpy as np
 import pytest
 
+# Force import to trigger decorators
+import mosaique.features.univariate  # noqa: F401
+import mosaique.features.graph_metrics  # noqa: F401
+
 from mosaique.features.univariate import (
-    approximate_entropy,
-    sample_entropy,
-    spectral_entropy,
-    permutation_entropy,
-    fuzzy_entropy,
-    corr_dim,
-    hurst_exp,
-    line_length,
     peak_alpha,
     band_power,
+    sample_entropy,
+    line_length,
+    permutation_entropy,
+    spectral_entropy,
 )
-from mosaique.features.connectivity import (
+from mosaique.features.connectivity import connected_threshold
+from mosaique.features.graph_metrics import (
     average_clustering,
     average_node_connectivity,
     average_degree,
     global_efficiency,
     average_shortest_path_length,
-    connected_threshold,
 )
+from mosaique.features.registry import FEATURE_REGISTRY
 
 # ---------------------------------------------------------------------------
-# Feature registries — add new features here for automatic edge-case coverage
+# Feature registries — auto-discovered from registry
 # ---------------------------------------------------------------------------
 
 UNIVARIATE_FEATURES = [
-    approximate_entropy,
-    sample_entropy,
-    spectral_entropy,
-    permutation_entropy,
-    fuzzy_entropy,
-    corr_dim,
-    hurst_exp,
-    line_length,
+    entry.func
+    for entry in FEATURE_REGISTRY.values()
+    if "simple" in entry.transforms
+    and entry.func.__name__ not in ("band_power", "peak_alpha")
 ]
 
 CONNECTIVITY_FEATURES = [
-    average_clustering,
-    average_node_connectivity,
-    average_degree,
-    global_efficiency,
-    average_shortest_path_length,
+    entry.func
+    for entry in FEATURE_REGISTRY.values()
+    if "connectivity" in entry.transforms
 ]
 
 
