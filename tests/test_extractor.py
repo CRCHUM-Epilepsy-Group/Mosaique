@@ -386,6 +386,41 @@ def test_failed_features_produce_warnings(synthetic_epochs, caplog):
     assert any("always_fails" in record.message for record in caplog.records)
 
 
+def test_all_registered_simple_features_produce_output(synthetic_epochs):
+    """Every registered 'simple' feature produces at least one row."""
+    from mosaique.features.registry import FEATURE_REGISTRY
+
+    simple_features = [
+        ExtractionStep(
+            name=name,
+            function=entry.func,
+            params={},
+        )
+        for name, entry in FEATURE_REGISTRY.items()
+        if "simple" in entry.transforms and name != "band_power"
+    ]
+
+    if not simple_features:
+        pytest.skip("No simple features registered")
+
+    features = {"simple": simple_features}
+    transforms = {
+        "simple": [ExtractionStep(name="simple", function=None, params={})],
+    }
+
+    extractor = FeatureExtractor(
+        features=features, transforms=transforms, num_workers=1
+    )
+    df = extractor.extract_feature(synthetic_epochs, eeg_id="test")
+
+    feature_names_in_output = set(df["feature"].unique().to_list())
+    registered_names = {f.name for f in simple_features}
+    missing = registered_names - feature_names_in_output
+    assert (
+        not missing
+    ), f"These features produced no output (silently failed?): {missing}"
+
+
 class TestExtractConvenienceFunction:
     def test_extract_matches_explicit_workflow(
         self, synthetic_epochs, minimal_config_file
