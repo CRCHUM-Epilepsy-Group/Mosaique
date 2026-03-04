@@ -50,3 +50,44 @@ def test_register_feature_preserves_function():
 
     assert my_feat(np.array([1.0])) == 1.0
     del FEATURE_REGISTRY["my_feat"]
+
+
+def test_all_univariate_features_registered():
+    """All univariate features are in the registry."""
+    import mosaique.features.univariate  # noqa: F401
+
+    expected = {
+        "approximate_entropy",
+        "sample_entropy",
+        "spectral_entropy",
+        "permutation_entropy",
+        "fuzzy_entropy",
+        "corr_dim",
+        "line_length",
+        "peak_alpha",
+        "hurst_exp",
+        "band_power",
+    }
+    registered = {
+        name for name, entry in FEATURE_REGISTRY.items() if "simple" in entry.transforms
+    }
+    assert expected <= registered
+
+
+def test_all_connectivity_features_registered():
+    """All connectivity features are in the registry."""
+    import mosaique.features.graph_metrics  # noqa: F401
+
+    expected = {
+        "average_clustering",
+        "average_node_connectivity",
+        "average_degree",
+        "global_efficiency",
+        "average_shortest_path_length",
+    }
+    registered = {
+        name
+        for name, entry in FEATURE_REGISTRY.items()
+        if "connectivity" in entry.transforms
+    }
+    assert expected <= registered

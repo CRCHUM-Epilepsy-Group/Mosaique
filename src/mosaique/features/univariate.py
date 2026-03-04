@@ -17,6 +17,7 @@ from scipy.signal import periodogram
 from scipy.signal.windows import dpss
 from scipy.spatial.distance import pdist
 
+from mosaique.features.registry import register_feature
 from mosaique.features.timefrequency import FrequencyBand
 
 
@@ -200,7 +201,10 @@ def _multitaper_psd(
 # Entropies
 
 
-def approximate_entropy(x: np.ndarray, m: int = 3, r: float = 0.2, **kwargs: Any) -> float:
+@register_feature(transform="simple")
+def approximate_entropy(
+    x: np.ndarray, m: int = 3, r: float = 0.2, **kwargs: Any
+) -> float:
     """Compute approximate entropy (ApEn) of a 1-D signal.
 
     Parameters
@@ -235,6 +239,7 @@ def approximate_entropy(x: np.ndarray, m: int = 3, r: float = 0.2, **kwargs: Any
     return apen
 
 
+@register_feature(transform="simple")
 def sample_entropy(x: np.ndarray, m: int = 2, r: float = 0.2, **kwargs: Any) -> float:
     """Compute sample entropy (SampEn) of a 1-D signal.
 
@@ -280,7 +285,10 @@ def sample_entropy(x: np.ndarray, m: int = 2, r: float = 0.2, **kwargs: Any) -> 
     return sampen
 
 
-def spectral_entropy(x: np.ndarray, sfreq: float = 200, normalize: bool = True, **kwargs: Any) -> float:
+@register_feature(transform="simple")
+def spectral_entropy(
+    x: np.ndarray, sfreq: float = 200, normalize: bool = True, **kwargs: Any
+) -> float:
     """
     Parameters
     ----------
@@ -310,6 +318,7 @@ def spectral_entropy(x: np.ndarray, sfreq: float = 200, normalize: bool = True, 
     return se
 
 
+@register_feature(transform="simple")
 def permutation_entropy(x: np.ndarray, k: int = 3, **kwargs: Any) -> float:
     """Compute permutation entropy of a 1-D signal.
 
@@ -332,7 +341,10 @@ def permutation_entropy(x: np.ndarray, k: int = 3, **kwargs: Any) -> float:
     return permen
 
 
-def fuzzy_entropy(x: np.ndarray, m: int = 2, r: float = 0.2, n: int = 2, **kwargs: Any) -> float:
+@register_feature(transform="simple")
+def fuzzy_entropy(
+    x: np.ndarray, m: int = 2, r: float = 0.2, n: int = 2, **kwargs: Any
+) -> float:
     """Compute fuzzy entropy (FuzzyEn) of a 1-D signal.
 
     Parameters
@@ -386,7 +398,10 @@ def fuzzy_entropy(x: np.ndarray, m: int = 2, r: float = 0.2, n: int = 2, **kwarg
 # Non linear markers
 
 
-def corr_dim(x: np.ndarray, embed_dim: int = 2, rvals: np.ndarray | None = None, **kwargs: Any) -> float:
+@register_feature(transform="simple")
+def corr_dim(
+    x: np.ndarray, embed_dim: int = 2, rvals: np.ndarray | None = None, **kwargs: Any
+) -> float:
     """Estimate the correlation dimension of a 1-D signal.
 
     Parameters
@@ -443,6 +458,7 @@ def corr_dim(x: np.ndarray, embed_dim: int = 2, rvals: np.ndarray | None = None,
         return poly[0]
 
 
+@register_feature(transform="simple")
 def line_length(x: np.ndarray, **kwargs: Any) -> float:
     """Compute the line length of a 1-D signal.
 
@@ -476,6 +492,7 @@ def line_length(x: np.ndarray, **kwargs: Any) -> float:
 # Linear markers
 
 
+@register_feature(transform="simple")
 def peak_alpha(x: np.ndarray, sfreq: float = 200, **kwargs: Any) -> float:
     """Find the peak frequency in the alpha band (8–13 Hz).
 
@@ -500,7 +517,10 @@ def peak_alpha(x: np.ndarray, sfreq: float = 200, **kwargs: Any) -> float:
     return peak_alpha
 
 
-def hurst_exp(x: np.ndarray, min_window: int = 10, max_window: int | None = None, **kwargs: Any) -> float:
+@register_feature(transform="simple")
+def hurst_exp(
+    x: np.ndarray, min_window: int = 10, max_window: int | None = None, **kwargs: Any
+) -> float:
     """Estimate the Hurst exponent via rescaled range (R/S) analysis.
 
     Parameters
@@ -559,7 +579,10 @@ def hurst_exp(x: np.ndarray, min_window: int = 10, max_window: int | None = None
     return H
 
 
-def band_power(x: np.ndarray, freqs: list[FrequencyBand], sfreq: float = 200, **kwargs: Any) -> dict[FrequencyBand, float]:
+@register_feature(transform="simple")
+def band_power(
+    x: np.ndarray, freqs: list[FrequencyBand], sfreq: float = 200, **kwargs: Any
+) -> dict[FrequencyBand, float]:
     """Get average band power for frequency bands.
 
     Parameters

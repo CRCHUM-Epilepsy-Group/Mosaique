@@ -3,6 +3,8 @@
 from typing import Any
 
 import numpy as np
+
+from mosaique.features.registry import register_feature
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import (
     connected_components,
@@ -84,6 +86,7 @@ def binary_threshold(mat: np.ndarray, max_threshold: float = 0.4) -> np.ndarray:
     return np.where(mat >= lo, 1, 0)
 
 
+@register_feature(transform="connectivity")
 def average_clustering(mat: np.ndarray, **kwargs: Any) -> float:
     """Average clustering coefficient of the graph (unweighted).
 
@@ -108,6 +111,7 @@ def average_clustering(mat: np.ndarray, **kwargs: Any) -> float:
     return float(clustering.mean())
 
 
+@register_feature(transform="connectivity")
 def average_node_connectivity(mat: np.ndarray, **kwargs: Any) -> float:
     """Average node connectivity (expected number of node-independent paths).
 
@@ -156,6 +160,7 @@ def average_node_connectivity(mat: np.ndarray, **kwargs: Any) -> float:
     return total / (n * (n - 1))
 
 
+@register_feature(transform="connectivity")
 def average_degree(mat: np.ndarray, **kwargs: Any) -> float:
     """Average node degree of the graph (unweighted).
 
@@ -173,6 +178,7 @@ def average_degree(mat: np.ndarray, **kwargs: Any) -> float:
     return float(A.sum(axis=1).mean())
 
 
+@register_feature(transform="connectivity")
 def global_efficiency(mat: np.ndarray, **kwargs: Any) -> float:
     """Global efficiency of the graph (unweighted shortest paths).
 
@@ -199,6 +205,7 @@ def global_efficiency(mat: np.ndarray, **kwargs: Any) -> float:
     return float(np.sum(1.0 / dist[mask]) / (n * (n - 1)))
 
 
+@register_feature(transform="connectivity")
 def average_shortest_path_length(mat: np.ndarray, **kwargs: Any) -> float:
     """Average shortest path length of the graph (unweighted).
 
