@@ -26,4 +26,6 @@ mne = ["mne", "mne-connectivity"]
 [dependency-groups]
 dev = [
     "psutil",
+    "pyright",
+    "ruff",
 ]
