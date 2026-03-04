@@ -8,8 +8,8 @@ Tests assert the *desired* behavior. Many will fail against the current code
 This is intentional — the test suite serves as a specification.
 
 To add a new univariate feature:
-  1. Implement the function
-  2. Add it to UNIVARIATE_FEATURES below
+  1. Implement the function with ``**kwargs``
+  2. Decorate it with ``@register_feature(transform="simple")``
   3. Run pytest — automatic coverage for valid input, flat signal, NaN/inf
      rejection, short signals, wrong dimensions, large values
 

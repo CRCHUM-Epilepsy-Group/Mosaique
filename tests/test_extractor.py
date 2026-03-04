@@ -383,6 +383,7 @@ def test_failed_features_produce_warnings(synthetic_epochs, caplog):
     with caplog.at_level(logging.WARNING):
         df = extractor.extract_feature(synthetic_epochs, eeg_id="test")
 
+    assert isinstance(df, pl.DataFrame)
     assert any("always_fails" in record.message for record in caplog.records)
 
 

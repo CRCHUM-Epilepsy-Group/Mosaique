@@ -93,7 +93,7 @@ class FeatureExtractor:
         num_workers: int = 1,
         batch_size: int = 128,
         debug=False,
-        console=Console(),
+        console=None,
     ):
         if config is not None:
             if features is not None or transforms is not None:
@@ -143,7 +143,7 @@ class FeatureExtractor:
         self.debug = debug
         if self.num_workers <= 1:
             self.debug = True
-        self.console = console
+        self.console = console if console is not None else Console()
         self._failed_features: list[str] = []
 
     @property
@@ -160,6 +160,7 @@ class FeatureExtractor:
         if self.logger.hasHandlers():
             self.logger.handlers.clear()
 
+        self.logger.setLevel(logging.WARNING)
         if self.log_dir is not None:
             log_path = Path(self.log_dir)
             log_path.mkdir(exist_ok=True, parents=True)

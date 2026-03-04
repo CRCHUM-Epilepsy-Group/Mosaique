@@ -17,8 +17,6 @@ _UNIVARIATE_HELPERS = {
 }
 
 _GRAPH_METRICS_HELPERS = {
-    "_validate_matrix",
-    "_binary_adjacency",
     "connected_threshold",
     "binary_threshold",
 }

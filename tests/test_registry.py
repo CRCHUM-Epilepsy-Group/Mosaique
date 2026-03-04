@@ -16,7 +16,7 @@ def test_register_feature_adds_to_registry():
     assert "dummy_feature" in FEATURE_REGISTRY
     entry = FEATURE_REGISTRY["dummy_feature"]
     assert entry.func is dummy_feature
-    assert entry.transforms == {"simple"}
+    assert entry.transforms == frozenset({"simple"})
     del FEATURE_REGISTRY["dummy_feature"]
 
 
@@ -28,7 +28,7 @@ def test_register_feature_multiple_transforms():
         return 0.0
 
     entry = FEATURE_REGISTRY["multi_feature"]
-    assert entry.transforms == {"simple", "tf_decomposition"}
+    assert entry.transforms == frozenset({"simple", "tf_decomposition"})
     del FEATURE_REGISTRY["multi_feature"]
 
 
