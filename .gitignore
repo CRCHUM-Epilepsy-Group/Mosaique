@@ -5,3 +5,6 @@ __pycache__/
 *.egg-info/
 benchmark/output/*.parquet
 *.DS_Store
+/benchmark/output/*.png
+/script/output/
+/tests/test_data/
