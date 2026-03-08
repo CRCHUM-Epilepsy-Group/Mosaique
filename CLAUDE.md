@@ -66,3 +66,69 @@ See `script/features_config.yaml` for a working example.
 - Build backend: **hatchling**
 - MNE is an optional dependency (`pip install mosaique[mne]`)
 - Environment auto-activated via direnv (`.envrc`)
+
+# Worktree Addon — Python & Cleanup
+
+Supplementary steps to run **after** the superpowers worktree skill completes worktree creation.
+
+## Python Project Setup (direnv + uv)
+
+**Critical for Python projects using direnv and/or uv.** Without these steps, the worktree silently uses the main repo's venv and editable install — tests run against the wrong source code.
+
+### 1. direnv: Create worktree-local `.envrc`
+
+direnv resolves paths relative to the `.envrc` file's location, NOT the CWD that triggered evaluation. Without a worktree-local `.envrc`, the main repo's `.envrc` activates the main repo's `.venv`.
+
+```bash
+if [ -f .envrc ]; then
+  cp .envrc "$path/.envrc"
+  direnv allow "$path"
+fi
+```
+
+### 2. uv: Create worktree-local venv with correct editable install
+
+`uv sync` generates `.pth` files pointing to the `src/` of wherever it's run. Must target the worktree to get `.pth` files pointing to `<worktree>/src/`.
+
+```bash
+if [ -f uv.lock ]; then
+  # Check pyproject.toml for optional-dependencies and ask user which extras to include
+  uv sync --project "$path"    # add --extra <name> as needed
+fi
+```
+
+If the project doesn't use uv but has other Python tooling:
+```bash
+if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+if [ -f pyproject.toml ] && command -v poetry &>/dev/null; then cd "$path" && poetry install; fi
+```
+
+### 3. Verify isolation
+
+```bash
+cd "$path"
+python -c "import <package_name>; print(__import__('pathlib').Path(<package_name>.__file__).resolve())"
+```
+
+The printed path **must** be inside the worktree, not the main repo. If it points to the main repo, the setup failed — re-run `uv sync --project "$path"`.
+
+## Worktree Cleanup Order
+
+**This overrides the cleanup order from `finishing-a-development-branch` if they conflict.**
+
+Always `cd` back to the main repo FIRST, then remove worktree BEFORE deleting branch. Getting this wrong is unrecoverable in the current shell.
+
+```bash
+# CORRECT order — three separate commands
+cd <main-repo-root>              # step 1: leave the worktree
+git worktree remove <path>       # step 2: remove worktree
+git branch -d <branch>           # step 3: delete branch
+```
+
+**If you see:** `error: cannot delete branch '<name>' used by worktree at '<path>'`
+→ You deleted the branch before removing the worktree. Run `git worktree remove <path>` first, then retry `git branch -d <branch>`.
+
+**If you see:** shell CWD gone / all commands failing
+→ You removed the worktree while still inside it. `cd <main-repo-root>` first.
+
+**Never combine steps 2+3 on one line** — always run them sequentially and separately.

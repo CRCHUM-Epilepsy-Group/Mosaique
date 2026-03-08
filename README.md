@@ -10,8 +10,8 @@ The goals of this library are:
 - Allows for user-defined features and transforms
 
 This pipeline was used in the following papers:
+- [Machine-learning for the prediction of one-year seizure recurrence based on routine electroencephalography](https://www.nature.com/articles/s41598-023-39799-8)
 - [Improving diagnostic accuracy of routine EEG for epilepsy using deep learning](https://academic.oup.com/braincomms/advance-article/doi/10.1093/braincomms/fcaf319/8240832?utm_source=advanceaccess&utm_campaign=braincomms&utm_medium=email)
-- [Development and validation of a deep survival model to predict time to seizure from routine electroencephalography](https://onlinelibrary.wiley.com/doi/10.1002/epi.70101?af=R)
 
 ## Quick start
 
